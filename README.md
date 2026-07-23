@@ -10,6 +10,12 @@
 - **노트북 연동** — 데스크톱 웹 앱 + 글로벌 단축키 캡처(텍스트 `⌘⇧J` · 화면 `⌘⇧S`), 모바일과 실시간 동기화
 - **사진·화면 캡처** — 사진은 사본 저장(확정), 화면 캡처는 출처 자동 기록 + OCR로 글자까지 검색 가능
 
+## 구성
+
+- [`app/index.html`](app/index.html) — 동작하는 웹 앱 v0.1 (브라우저에서 바로 열기)
+- [`desktop/`](desktop/) — 맥 앱 (Electron). `cd desktop && npm install && npm start`, 빌드는 `npm run dist`. ⌘⇧J 글로벌 빠른 캡처, 스크린샷 붙여넣기 지원
+- [`design/index.html`](design/index.html) — 디자인 시안
+
 ## 디자인 시안
 
 첫 번째 시안은 [`design/index.html`](design/index.html)에 있습니다.

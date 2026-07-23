@@ -252,6 +252,13 @@
   @media (prefers-reduced-motion: reduce) { .toast { transition: none; } .card:active { transform: none; } }
 
   .hidden { display: none !important; }
+
+  /* capture mode (desktop quick-capture window) */
+  :root[data-capture] .tabbar, :root[data-capture] .fab,
+  :root[data-capture] .topbar, :root[data-capture] .searchbar,
+  :root[data-capture] .filters, :root[data-capture] .main { display: none !important; }
+  :root[data-capture] .sheet-back { background: transparent; align-items: stretch; }
+  :root[data-capture] .sheet { max-width: none; border-radius: 0; max-height: none; }
 </style>
 
 <div class="shell">
@@ -337,6 +344,9 @@
 <script>
 (function () {
   'use strict';
+
+  var CAPTURE_MODE = location.hash === '#capture';
+  if (CAPTURE_MODE) document.documentElement.setAttribute('data-capture', '1');
 
   /* ---------- storage ---------- */
   var STORE_KEY = 'jogak.v1';
@@ -687,6 +697,7 @@
     $('composeBack').classList.remove('open');
     state.editingId = null;
     state.composeAtt = null;
+    if (CAPTURE_MODE) window.close();
   }
 
   function renderComposeChips() {
@@ -986,6 +997,42 @@
     }
   });
 
+  /* paste an image (e.g. a screenshot) straight into an open compose sheet */
+  document.addEventListener('paste', function (e) {
+    if (!$('composeBack').classList.contains('open')) return;
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type && items[i].type.indexOf('image/') === 0) {
+        var f = items[i].getAsFile();
+        if (f) {
+          e.preventDefault();
+          resizeImage(f, function (dataUrl) {
+            state.composeAtt = dataUrl;
+            updateAttPreview();
+            toast('사진을 붙여넣었어요');
+          });
+        }
+        return;
+      }
+    }
+  });
+
+  /* drag & drop an image file onto the compose sheet */
+  $('composeBack').addEventListener('dragover', function (e) { e.preventDefault(); });
+  $('composeBack').addEventListener('drop', function (e) {
+    e.preventDefault();
+    if (!$('composeBack').classList.contains('open')) return;
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f && f.type.indexOf('image/') === 0) {
+      resizeImage(f, function (dataUrl) {
+        state.composeAtt = dataUrl;
+        updateAttPreview();
+        toast('사진을 첨부했어요');
+      });
+    }
+  });
+
   render();
+  if (CAPTURE_MODE) openCompose(null);
 })();
 </script>

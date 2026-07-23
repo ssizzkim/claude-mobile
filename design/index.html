@@ -157,6 +157,16 @@
   }
   .card .txt { font-size: 13.5px; line-height: 1.6; margin: 0 0 8px; }
   .card .txt.quote { font-family: var(--serif); }
+  .photo-thumb {
+    height: 80px; border-radius: 8px; margin-bottom: 10px;
+    background: linear-gradient(135deg, #9AB4D6 0%, #C6D5E8 45%, #E4D9C8 100%);
+    position: relative;
+  }
+  .photo-thumb::after {
+    content: "☁ iCloud"; position: absolute; right: 8px; bottom: 6px;
+    font-size: 9.5px; color: rgba(255,255,255,.95); background: rgba(27,36,48,.45);
+    padding: 2px 7px; border-radius: 999px;
+  }
   .card .meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
   .card .meta .chip { padding: 2px 8px; font-size: 10.5px; }
 
@@ -358,6 +368,11 @@
               <div class="meta"><span class="chip c3">인용</span><span>어제 22:40</span></div>
             </div>
             <div class="card">
+              <div class="photo-thumb"></div>
+              <p class="txt">한강 새벽 산책 — 다리 위로 안개가 걷히던 순간.</p>
+              <div class="meta"><span class="chip c4">일기 조각</span><span>7.22 · 사진첩</span></div>
+            </div>
+            <div class="card">
               <p class="txt">폴더 이름을 &lsquo;서랍&rsquo;이라고 부르는 것도 괜찮겠다. 정리 부담이 훨씬 덜해 보인다.</p>
               <div class="meta"><span class="chip c1">아이디어</span><span>어제 21:03 · 노트북</span></div>
             </div>
@@ -550,10 +565,37 @@
     </div>
   </section>
 
-  <!-- 4. 데이터 구조 -->
+  <!-- 4. 사진 조각 -->
   <section>
     <div class="sec-head">
-      <h2>4. 데이터 구조</h2>
+      <h2>4. 사진 조각 — 맥 사진첩 · iCloud 연동</h2>
+      <span class="sub">사진을 카드에 담는 세 가지 방법</span>
+    </div>
+    <div class="sync-notes" style="margin-top:0">
+      <div class="sync-note">
+        <b>A. 사본 첨부 <span class="chip on" style="font-size:10px;vertical-align:2px">v1 기본</span></b>
+        <p>드래그&amp;드롭·파일 선택·붙여넣기로 사진 <em>사본</em>을 카드에 저장합니다. 맥의 파일 선택 창에서 사진 앱 미디어 브라우저를 통해 사진첩 사진을 고를 수 있습니다. 원본과 독립적이라 가장 확실하고, 기기 간 동기화도 앱이 책임집니다.</p>
+      </div>
+      <div class="sync-note">
+        <b>B. iCloud 공유 링크 <span class="chip c1" style="font-size:10px;vertical-align:2px">v1 지원</span></b>
+        <p>사진 앱에서 <em>공유 → iCloud 링크 복사</em> 후 카드에 붙여넣으면 링크 카드가 됩니다. 원본은 iCloud에 두고 앱은 링크와 미리보기만 보관해 저장 공간을 아낍니다. 단, 링크를 삭제·만료시키면 카드에서도 열 수 없습니다.</p>
+      </div>
+      <div class="sync-note">
+        <b>C. 사진첩 직접 참조 <span class="chip c3" style="font-size:10px;vertical-align:2px">네이티브 단계</span></b>
+        <p>웹 앱은 맥 사진첩을 직접 읽는 API가 없어, 사본 없이 원본을 참조하는 방식은 iOS/맥 <em>네이티브 앱</em> 단계에서 PhotoKit으로 구현합니다. 이때는 사진 앱 공유 시트에서 바로 &lsquo;조각으로 저장&rsquo;도 가능해집니다.</p>
+      </div>
+    </div>
+    <p class="model-note">
+      정리하면 — v1(웹/모바일 웹)에서는 <b>A(사본) + B(iCloud 링크)</b>로 시작하고,
+      네이티브 앱 단계에서 <b>C(사진첩 직접 참조)</b>를 얹는 로드맵입니다.
+      홈 피드 시안(2-1)에 사진 조각 카드가 어떻게 보이는지 반영해 두었습니다.
+    </p>
+  </section>
+
+  <!-- 5. 데이터 구조 -->
+  <section>
+    <div class="sec-head">
+      <h2>5. 데이터 구조</h2>
       <span class="sub">조각 = 카드 1장, 서랍 = 폴더</span>
     </div>
     <div class="model-grid">
@@ -566,6 +608,12 @@
     <span class="key">"context"</span>: <span class="str">"quick-capture"</span>,
     <span class="key">"url"</span>: null
   },
+  <span class="key">"attachments"</span>: [{
+    <span class="key">"type"</span>: <span class="str">"image"</span>,
+    <span class="key">"mode"</span>: <span class="str">"icloud_link"</span>,  <span style="color:var(--faint)">// copy | icloud_link | photokit</span>
+    <span class="key">"url"</span>: <span class="str">"https://share.icloud.com/photos/0aBc…"</span>,
+    <span class="key">"thumb"</span>: <span class="str">"thumb_8f2k1.jpg"</span>
+  }],
   <span class="key">"created_at"</span>: <span class="str">"2026-07-23T08:12:00+09:00"</span>,
   <span class="key">"updated_at"</span>: <span class="str">"2026-07-23T09:05:00+09:00"</span>,
   <span class="key">"pinned"</span>: false,
@@ -588,10 +636,10 @@
     </p>
   </section>
 
-  <!-- 5. 디자인 토큰 -->
+  <!-- 6. 디자인 토큰 -->
   <section>
     <div class="sec-head">
-      <h2>5. 디자인 토큰</h2>
+      <h2>6. 디자인 토큰</h2>
       <span class="sub">쪽빛 팔레트 · 명조/고딕 페어링</span>
     </div>
     <div class="swatches">
@@ -614,10 +662,10 @@
     </p>
   </section>
 
-  <!-- 6. 다음 단계 -->
+  <!-- 7. 다음 단계 -->
   <section>
     <div class="sec-head">
-      <h2>6. 다음 단계</h2>
+      <h2>7. 다음 단계</h2>
       <span class="sub">시안 확정 후 진행 순서</span>
     </div>
     <ol class="next">

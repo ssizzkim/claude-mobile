@@ -1,0 +1,29 @@
+{
+  "name": "jogak-desktop",
+  "productName": "조각",
+  "version": "0.1.0",
+  "description": "조각 (JOGAK) — 카드 노트 맥 앱",
+  "main": "main.js",
+  "license": "MIT",
+  "scripts": {
+    "sync": "mkdir -p renderer && cp ../app/index.html renderer/index.html",
+    "prestart": "npm run sync",
+    "start": "electron .",
+    "predist": "npm run sync",
+    "dist": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "app.jogak.desktop",
+    "productName": "조각",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "renderer/**"],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"]
+    }
+  }
+}

@@ -1,0 +1,745 @@
+<title>조각 — 카드 노트 앱 시안</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --ground: #F1F3F6;
+    --surface: #FFFFFF;
+    --surface-2: #E9EDF3;
+    --ink: #1B2430;
+    --muted: #5C6672;
+    --faint: #8B94A1;
+    --line: #D8DEE7;
+    --accent: #2D5BA8;
+    --accent-ink: #FFFFFF;
+    --accent-soft: #E3EAF6;
+    --accent-soft-ink: #2D5BA8;
+    --chip-1: #E3EAF6; --chip-1-ink: #2D5BA8;
+    --chip-2: #E4F0E8; --chip-2-ink: #2E6B45;
+    --chip-3: #F4EAE0; --chip-3-ink: #8A5A2B;
+    --chip-4: #EFE6F2; --chip-4-ink: #6C4585;
+    --shadow: 0 1px 2px rgba(27,36,48,.06), 0 8px 24px rgba(27,36,48,.08);
+    --shadow-sm: 0 1px 3px rgba(27,36,48,.10);
+    --serif: "Noto Serif KR", "Nanum Myeongjo", "Apple SD Gothic Neo", serif;
+    --sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #12161D;
+      --surface: #1B212B;
+      --surface-2: #232B37;
+      --ink: #E8ECF2;
+      --muted: #9AA4B2;
+      --faint: #6E7887;
+      --line: #303A48;
+      --accent: #7FA4E0;
+      --accent-ink: #0F1723;
+      --accent-soft: #253549;
+      --accent-soft-ink: #A9C4EC;
+      --chip-1: #253549; --chip-1-ink: #A9C4EC;
+      --chip-2: #223529; --chip-2-ink: #9CCBAD;
+      --chip-3: #3A2E20; --chip-3-ink: #DDB88A;
+      --chip-4: #33283A; --chip-4-ink: #C7A9D6;
+      --shadow: 0 1px 2px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.35);
+      --shadow-sm: 0 1px 3px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #F1F3F6; --surface: #FFFFFF; --surface-2: #E9EDF3;
+    --ink: #1B2430; --muted: #5C6672; --faint: #8B94A1; --line: #D8DEE7;
+    --accent: #2D5BA8; --accent-ink: #FFFFFF;
+    --accent-soft: #E3EAF6; --accent-soft-ink: #2D5BA8;
+    --chip-1: #E3EAF6; --chip-1-ink: #2D5BA8;
+    --chip-2: #E4F0E8; --chip-2-ink: #2E6B45;
+    --chip-3: #F4EAE0; --chip-3-ink: #8A5A2B;
+    --chip-4: #EFE6F2; --chip-4-ink: #6C4585;
+    --shadow: 0 1px 2px rgba(27,36,48,.06), 0 8px 24px rgba(27,36,48,.08);
+    --shadow-sm: 0 1px 3px rgba(27,36,48,.10);
+  }
+  :root[data-theme="dark"] {
+    --ground: #12161D; --surface: #1B212B; --surface-2: #232B37;
+    --ink: #E8ECF2; --muted: #9AA4B2; --faint: #6E7887; --line: #303A48;
+    --accent: #7FA4E0; --accent-ink: #0F1723;
+    --accent-soft: #253549; --accent-soft-ink: #A9C4EC;
+    --chip-1: #253549; --chip-1-ink: #A9C4EC;
+    --chip-2: #223529; --chip-2-ink: #9CCBAD;
+    --chip-3: #3A2E20; --chip-3-ink: #DDB88A;
+    --chip-4: #33283A; --chip-4-ink: #C7A9D6;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 8px 24px rgba(0,0,0,.35);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* ---------- hero ---------- */
+  header.hero { padding: 72px 0 40px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin: 0 0 16px;
+  }
+  h1.title {
+    font-family: var(--serif);
+    font-size: clamp(40px, 7vw, 64px);
+    font-weight: 700; line-height: 1.15;
+    margin: 0 0 8px; text-wrap: balance;
+  }
+  h1.title .latin { font-size: .38em; color: var(--faint); font-family: var(--sans); font-weight: 500; letter-spacing: .12em; vertical-align: middle; margin-left: .5em; }
+  p.lede {
+    font-size: 19px; color: var(--muted); max-width: 34em;
+    margin: 16px 0 0; text-wrap: pretty;
+  }
+  p.lede strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- sections ---------- */
+  section { margin-top: 72px; }
+  .sec-head { display: flex; align-items: baseline; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 28px; }
+  .sec-head h2 { font-family: var(--serif); font-size: 26px; font-weight: 700; margin: 0; }
+  .sec-head .sub { color: var(--muted); font-size: 14px; }
+
+  /* ---------- concept cards ---------- */
+  .concepts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .concept {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px 22px 20px; box-shadow: var(--shadow-sm);
+  }
+  .concept .k { font-family: var(--serif); font-size: 19px; font-weight: 700; margin: 0 0 6px; }
+  .concept p { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .concept .glyph { width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft); color: var(--accent-soft-ink); display: grid; place-items: center; font-size: 17px; margin-bottom: 14px; }
+
+  /* ---------- phone frames ---------- */
+  .screens { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 28px; align-items: start; }
+  .screen-col { display: flex; flex-direction: column; gap: 14px; }
+  .phone {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 30px; overflow: hidden;
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column;
+    min-height: 560px;
+  }
+  .phone .statusbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px 4px; font-size: 11px; color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .screen-note h3 { font-size: 15px; margin: 0 0 4px; font-weight: 700; }
+  .screen-note h3 .num { color: var(--accent); font-family: var(--mono); font-size: 12px; margin-right: 6px; }
+  .screen-note p { margin: 0; font-size: 13.5px; color: var(--muted); }
+
+  /* app-internal ui */
+  .app-head { padding: 10px 18px 6px; display: flex; justify-content: space-between; align-items: center; }
+  .app-head .logo { font-family: var(--serif); font-weight: 700; font-size: 18px; }
+  .app-head .icons { display: flex; gap: 12px; color: var(--faint); font-size: 15px; }
+  .search {
+    margin: 6px 16px 10px; background: var(--surface-2); border-radius: 10px;
+    padding: 8px 12px; font-size: 13px; color: var(--faint);
+  }
+  .filter-row { display: flex; gap: 6px; padding: 0 16px 10px; flex-wrap: wrap; }
+  .chip { font-size: 11.5px; padding: 4px 10px; border-radius: 999px; font-weight: 600; }
+  .chip.on { background: var(--accent); color: var(--accent-ink); }
+  .chip.c1 { background: var(--chip-1); color: var(--chip-1-ink); }
+  .chip.c2 { background: var(--chip-2); color: var(--chip-2-ink); }
+  .chip.c3 { background: var(--chip-3); color: var(--chip-3-ink); }
+  .chip.c4 { background: var(--chip-4); color: var(--chip-4-ink); }
+
+  .feed { padding: 2px 16px 16px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .card {
+    background: var(--ground); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .card .txt { font-size: 13.5px; line-height: 1.6; margin: 0 0 8px; }
+  .card .txt.quote { font-family: var(--serif); }
+  .photo-thumb {
+    height: 80px; border-radius: 8px; margin-bottom: 10px;
+    background: linear-gradient(135deg, #9AB4D6 0%, #C6D5E8 45%, #E4D9C8 100%);
+    position: relative;
+  }
+  .photo-thumb::after {
+    content: "사진"; position: absolute; right: 8px; bottom: 6px;
+    font-size: 9.5px; color: rgba(255,255,255,.95); background: rgba(27,36,48,.45);
+    padding: 2px 7px; border-radius: 999px;
+  }
+  .card .meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .card .meta .chip { padding: 2px 8px; font-size: 10.5px; }
+
+  .tabbar {
+    display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line);
+    padding: 10px 8px 16px; text-align: center; font-size: 10.5px; color: var(--faint);
+    margin-top: auto;
+  }
+  .tabbar .tab { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+  .tabbar .tab .ic { font-size: 16px; }
+  .tabbar .tab.on { color: var(--accent); font-weight: 700; }
+
+  .fab {
+    position: relative; align-self: flex-end; margin: -26px 18px 0 0; z-index: 2;
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--accent); color: var(--accent-ink);
+    display: grid; place-items: center; font-size: 22px; font-weight: 300;
+    box-shadow: var(--shadow);
+  }
+
+  /* folder screen */
+  .folder-list { padding: 4px 16px 16px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .folder {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--ground); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .folder .fic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 16px; }
+  .folder .fname { font-size: 14px; font-weight: 600; margin: 0; }
+  .folder .fsub { font-size: 11.5px; color: var(--faint); margin: 0; font-variant-numeric: tabular-nums; }
+  .folder .cnt { margin-left: auto; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+
+  /* compose screen */
+  .compose { padding: 6px 16px 16px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+  .compose .paper {
+    background: var(--ground); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; min-height: 150px; font-size: 14px; line-height: 1.7;
+  }
+  .compose .paper .caret { display: inline-block; width: 2px; height: 1.05em; background: var(--accent); vertical-align: text-bottom; animation: blink 1.1s steps(1) infinite; }
+  .shot { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--ground); }
+  .shot-img { height: 110px; background: linear-gradient(160deg, #9AB4D6 0%, #C6D5E8 55%, #E4D9C8 100%); }
+  .shot-src { font-size: 11px; color: var(--faint); padding: 8px 12px; border-top: 1px solid var(--line); }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .compose .paper .caret { animation: none; } }
+  .compose .label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
+  .suggest {
+    background: var(--accent-soft); color: var(--accent-soft-ink);
+    border-radius: 10px; padding: 10px 12px; font-size: 12.5px;
+  }
+  .btn-row { display: flex; gap: 8px; margin-top: auto; }
+  .btn { flex: 1; text-align: center; padding: 11px 0; border-radius: 11px; font-size: 14px; font-weight: 700; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.ghost { background: var(--surface-2); color: var(--muted); }
+
+  /* detail screen */
+  .detail { padding: 6px 18px 16px; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+  .detail .big { font-family: var(--serif); font-size: 17px; line-height: 1.75; margin: 0; }
+  .kv { display: grid; grid-template-columns: 64px 1fr; gap: 6px 12px; font-size: 12.5px; }
+  .kv dt { color: var(--faint); margin: 0; }
+  .kv dd { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .related-label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); font-weight: 700; margin-top: 4px; }
+
+  /* ---------- desktop frame ---------- */
+  .browser {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    overflow: hidden; box-shadow: var(--shadow);
+  }
+  .browser .chrome {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2);
+  }
+  .browser .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+  .browser .url {
+    flex: 1; max-width: 340px; margin-left: 10px;
+    background: var(--surface); border-radius: 7px; padding: 4px 12px;
+    font-size: 11.5px; color: var(--faint); font-family: var(--mono);
+  }
+  .desk { display: grid; grid-template-columns: 190px 1fr 250px; min-height: 460px; }
+  @media (max-width: 860px) { .desk { grid-template-columns: 160px 1fr; } .desk .pane-edit { display: none; } }
+  @media (max-width: 620px) { .desk { grid-template-columns: 1fr; } .desk .pane-side { display: none; } }
+  .pane-side { border-right: 1px solid var(--line); padding: 16px 12px; font-size: 13px; }
+  .pane-side .side-title { font-family: var(--serif); font-weight: 700; font-size: 15px; padding: 0 8px 10px; }
+  .side-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; color: var(--muted); }
+  .side-item .n { margin-left: auto; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .side-item.on { background: var(--accent-soft); color: var(--accent-soft-ink); font-weight: 700; }
+  .pane-main { padding: 16px 18px; }
+  .pane-main .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .pane-main .toolbar .t { font-weight: 700; font-size: 15px; }
+  .pane-main .toolbar .sync { font-size: 11.5px; color: var(--faint); display: flex; align-items: center; gap: 6px; }
+  .pane-main .toolbar .sync .dot-live { width: 7px; height: 7px; border-radius: 50%; background: #3E9B63; }
+  .masonry { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .mcard { background: var(--ground); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 12px; line-height: 1.6; }
+  .mcard .meta { font-size: 10px; color: var(--faint); margin-top: 8px; font-variant-numeric: tabular-nums; }
+  .pane-edit { border-left: 1px solid var(--line); padding: 16px 16px; font-size: 12.5px; }
+  .pane-edit .label { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); font-weight: 700; margin-bottom: 8px; }
+  .pane-edit .paper { background: var(--ground); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-height: 120px; line-height: 1.7; }
+  .hotkey { display: inline-block; background: var(--surface-2); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+
+  .sync-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 24px; }
+  .sync-note { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; font-size: 14px; }
+  .sync-note b { display: block; margin-bottom: 4px; }
+  .sync-note p { margin: 0; color: var(--muted); font-size: 13.5px; }
+
+  /* ---------- data model ---------- */
+  .model-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  pre.code {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px 20px; overflow-x: auto; margin: 0;
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.7; color: var(--muted);
+  }
+  pre.code .key { color: var(--accent); }
+  pre.code .str { color: var(--ink); }
+  .model-note { font-size: 14px; color: var(--muted); margin: 18px 0 0; max-width: 46em; }
+
+  /* ---------- tokens ---------- */
+  .swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+  .swatch { border-radius: 12px; border: 1px solid var(--line); overflow: hidden; background: var(--surface); }
+  .swatch .color { height: 56px; }
+  .swatch .info { padding: 10px 12px; font-size: 12px; }
+  .swatch .info b { display: block; font-size: 12.5px; }
+  .swatch .info code { font-family: var(--mono); color: var(--faint); font-size: 11px; }
+  .type-table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-top: 20px; }
+  .type-table td { padding: 14px 18px; border-top: 1px solid var(--line); vertical-align: baseline; }
+  .type-table tr:first-child td { border-top: none; }
+  .type-table .role { font-size: 12px; color: var(--faint); width: 130px; }
+  .t-display { font-family: var(--serif); font-size: 26px; font-weight: 700; }
+  .t-card { font-size: 15px; }
+  .t-quote { font-family: var(--serif); font-size: 16px; }
+  .t-meta { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+
+  /* ---------- next steps ---------- */
+  ol.next { margin: 0; padding-left: 22px; max-width: 46em; }
+  ol.next li { margin-bottom: 10px; color: var(--muted); }
+  ol.next li b { color: var(--ink); }
+
+  footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--faint); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <p class="eyebrow">Design Proposal · v1 · 2026.07</p>
+    <h1 class="title">조각<span class="latin">JOGAK — 카드 노트 앱 시안</span></h1>
+    <p class="lede">
+      노트북에서 떠오른 <strong>단편적인 글</strong>을 잃어버리지 않도록, 한 조각씩 <strong>카드</strong>로 수집하고
+      <strong>폴더</strong>로 정리하는 앱. 노트북(데스크톱)과 모바일이 실시간으로 연동되어,
+      어디서 적어도 하나의 서랍에 모입니다.
+    </p>
+  </header>
+
+  <!-- 1. 핵심 컨셉 -->
+  <section>
+    <div class="sec-head">
+      <h2>1. 핵심 컨셉</h2>
+      <span class="sub">이 앱이 지키는 세 가지 원칙</span>
+    </div>
+    <div class="concepts">
+      <div class="concept">
+        <div class="glyph">✂</div>
+        <p class="k">글은 조각으로 태어난다</p>
+        <p>문서가 아니라 카드가 기본 단위. 제목 없이, 형식 없이, 한 문단이면 충분합니다. 긴 글은 나중에 조각을 이어 붙여 만듭니다.</p>
+      </div>
+      <div class="concept">
+        <div class="glyph">⌗</div>
+        <p class="k">정리는 서랍처럼</p>
+        <p>폴더는 깊은 트리가 아니라 얕은 서랍. 한 카드는 여러 서랍에 동시에 꽂힐 수 있고, 어디에도 꽂히지 않은 카드는 &lsquo;미분류함&rsquo;에 모입니다.</p>
+      </div>
+      <div class="concept">
+        <div class="glyph">⇄</div>
+        <p class="k">노트북과 한 몸</p>
+        <p>데스크톱 웹/앱에서 쓰던 글이 모바일에 즉시 나타납니다. 글로벌 단축키로 어떤 작업 중에도 카드 한 장을 바로 저장합니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. 모바일 화면 -->
+  <section>
+    <div class="sec-head">
+      <h2>2. 모바일 화면 시안</h2>
+      <span class="sub">핵심 4개 화면</span>
+    </div>
+    <div class="screens">
+
+      <!-- 홈 피드 -->
+      <div class="screen-col">
+        <div class="phone">
+          <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+          <div class="app-head"><span class="logo">조각</span><span class="icons">☾ ⚙</span></div>
+          <div class="search">🔍 조각 검색…</div>
+          <div class="filter-row">
+            <span class="chip on">전체 128</span>
+            <span class="chip c1">아이디어</span>
+            <span class="chip c2">독서 메모</span>
+            <span class="chip c3">인용</span>
+          </div>
+          <div class="feed">
+            <div class="card">
+              <p class="txt">카드 앱의 핵심은 저장이 아니라 &lsquo;다시 만나게&rsquo; 하는 것. 오래된 조각을 홈 상단에 하루 한 장씩 띄워주면 어떨까.</p>
+              <div class="meta"><span class="chip c1">아이디어</span><span>오늘 08:12 · 노트북</span></div>
+            </div>
+            <div class="card">
+              <p class="txt quote">&ldquo;쓴다는 것은 잊기 위해서가 아니라 다시 기억하기 위해서다.&rdquo;</p>
+              <div class="meta"><span class="chip c3">인용</span><span>어제 22:40</span></div>
+            </div>
+            <div class="card">
+              <div class="photo-thumb"></div>
+              <p class="txt">한강 새벽 산책 — 다리 위로 안개가 걷히던 순간.</p>
+              <div class="meta"><span class="chip c4">일기 조각</span><span>7.22 · 사진첩</span></div>
+            </div>
+            <div class="card">
+              <p class="txt">폴더 이름을 &lsquo;서랍&rsquo;이라고 부르는 것도 괜찮겠다. 정리 부담이 훨씬 덜해 보인다.</p>
+              <div class="meta"><span class="chip c1">아이디어</span><span>어제 21:03 · 노트북</span></div>
+            </div>
+            <div class="card">
+              <p class="txt">『생각의 탄생』 3장 — 관찰은 수동적 봄이 아니라 적극적 채집이다.</p>
+              <div class="meta"><span class="chip c2">독서 메모</span><span>7.21</span></div>
+            </div>
+          </div>
+          <div class="fab">＋</div>
+          <div class="tabbar">
+            <div class="tab on"><span class="ic">▤</span>조각</div>
+            <div class="tab"><span class="ic">▣</span>서랍</div>
+            <div class="tab"><span class="ic">◎</span>다시보기</div>
+            <div class="tab"><span class="ic">☰</span>더보기</div>
+          </div>
+        </div>
+        <div class="screen-note">
+          <h3><span class="num">2-1</span>홈 · 조각 피드</h3>
+          <p>모든 카드가 시간순으로 쌓이는 흐름. 카드마다 어느 기기에서 작성됐는지(노트북 표시)와 소속 서랍이 보입니다. 상단 칩으로 서랍 필터링.</p>
+        </div>
+      </div>
+
+      <!-- 서랍(폴더) -->
+      <div class="screen-col">
+        <div class="phone">
+          <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+          <div class="app-head"><span class="logo">서랍</span><span class="icons">＋</span></div>
+          <div class="search">🔍 서랍 검색…</div>
+          <div class="folder-list">
+            <div class="folder">
+              <div class="fic" style="background:var(--chip-1);color:var(--chip-1-ink)">💡</div>
+              <div><p class="fname">아이디어</p><p class="fsub">오늘 2개 추가</p></div>
+              <span class="cnt">46</span>
+            </div>
+            <div class="folder">
+              <div class="fic" style="background:var(--chip-2);color:var(--chip-2-ink)">📖</div>
+              <div><p class="fname">독서 메모</p><p class="fsub">이번 주 5개 추가</p></div>
+              <span class="cnt">31</span>
+            </div>
+            <div class="folder">
+              <div class="fic" style="background:var(--chip-3);color:var(--chip-3-ink)">❝</div>
+              <div><p class="fname">인용</p><p class="fsub">7.22 마지막 추가</p></div>
+              <span class="cnt">24</span>
+            </div>
+            <div class="folder">
+              <div class="fic" style="background:var(--chip-4);color:var(--chip-4-ink)">🌙</div>
+              <div><p class="fname">일기 조각</p><p class="fsub">매일 밤에 쌓이는 중</p></div>
+              <span class="cnt">18</span>
+            </div>
+            <div class="folder" style="border-style:dashed">
+              <div class="fic" style="background:var(--surface-2);color:var(--faint)">⋯</div>
+              <div><p class="fname">미분류함</p><p class="fsub">서랍에 꽂히지 않은 조각</p></div>
+              <span class="cnt">9</span>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tab"><span class="ic">▤</span>조각</div>
+            <div class="tab on"><span class="ic">▣</span>서랍</div>
+            <div class="tab"><span class="ic">◎</span>다시보기</div>
+            <div class="tab"><span class="ic">☰</span>더보기</div>
+          </div>
+        </div>
+        <div class="screen-note">
+          <h3><span class="num">2-2</span>서랍 · 폴더 정리</h3>
+          <p>얕은 1단계 서랍 목록. 색과 아이콘으로 구분하고, 개수와 최근 활동이 보입니다. 미분류함은 항상 맨 아래에 점선으로 — 정리를 부드럽게 유도합니다.</p>
+        </div>
+      </div>
+
+      <!-- 작성 -->
+      <div class="screen-col">
+        <div class="phone">
+          <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+          <div class="app-head"><span class="logo">새 조각</span><span class="icons">✕</span></div>
+          <div class="compose">
+            <div class="paper">완벽한 문장보다 남겨진 문장이 낫다. 일단 조각으로 잘라서<span class="caret"></span></div>
+            <div>
+              <div class="label">서랍 선택</div>
+              <div class="filter-row" style="padding:8px 0 0">
+                <span class="chip on">아이디어</span>
+                <span class="chip c2">독서 메모</span>
+                <span class="chip c3">인용</span>
+                <span class="chip c4">일기 조각</span>
+              </div>
+            </div>
+            <div class="suggest">✨ 내용을 보니 &lsquo;아이디어&rsquo; 서랍이 어울려요 — 자동 분류 제안</div>
+            <div class="btn-row">
+              <div class="btn ghost">임시 보관</div>
+              <div class="btn primary">조각 저장</div>
+            </div>
+          </div>
+        </div>
+        <div class="screen-note">
+          <h3><span class="num">2-3</span>새 조각 · 3초 캡처</h3>
+          <p>제목도 필수 항목도 없는 백지 한 장. 서랍은 선택 사항이며, 내용 기반 자동 분류 제안으로 나중 정리를 돕습니다. 저장까지 3초가 목표.</p>
+        </div>
+      </div>
+
+      <!-- 상세 -->
+      <div class="screen-col">
+        <div class="phone">
+          <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+          <div class="app-head"><span class="logo">←</span><span class="icons">✎ ⧉ ⋮</span></div>
+          <div class="detail">
+            <p class="big">카드 앱의 핵심은 저장이 아니라 &lsquo;다시 만나게&rsquo; 하는 것. 오래된 조각을 홈 상단에 하루 한 장씩 띄워주면 어떨까.</p>
+            <div class="filter-row" style="padding:0">
+              <span class="chip c1">아이디어</span>
+              <span class="chip c4">앱 구상</span>
+            </div>
+            <dl class="kv">
+              <dt>작성</dt><dd>2026.07.23 08:12 · MacBook</dd>
+              <dt>수정</dt><dd>2026.07.23 09:05 · iPhone</dd>
+              <dt>글자수</dt><dd>58자</dd>
+            </dl>
+            <div class="related-label">연결된 조각</div>
+            <div class="card">
+              <p class="txt">폴더 이름을 &lsquo;서랍&rsquo;이라고 부르는 것도 괜찮겠다.</p>
+              <div class="meta"><span class="chip c1">아이디어</span><span>어제</span></div>
+            </div>
+            <div class="card">
+              <p class="txt quote">&ldquo;쓴다는 것은 잊기 위해서가 아니라 다시 기억하기 위해서다.&rdquo;</p>
+              <div class="meta"><span class="chip c3">인용</span><span>어제</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="screen-note">
+          <h3><span class="num">2-4</span>조각 상세 · 연결</h3>
+          <p>본문은 명조로 크게, 작성/수정 이력에 기기 정보가 남아 연동 상태를 신뢰할 수 있게. 아래에는 같은 서랍·비슷한 내용의 &lsquo;연결된 조각&rsquo;을 제안합니다.</p>
+        </div>
+      </div>
+
+      <!-- 캡처 저장 -->
+      <div class="screen-col">
+        <div class="phone">
+          <div class="statusbar"><span>9:41</span><span>●●●</span></div>
+          <div class="app-head"><span class="logo">캡처 저장</span><span class="icons">✕</span></div>
+          <div class="compose">
+            <div class="shot">
+              <div class="shot-img"></div>
+              <div class="shot-src">출처 자동 기록 — Safari · blog.example.com</div>
+            </div>
+            <div>
+              <div class="label">캡처에서 읽은 글자 (OCR)</div>
+              <div class="paper" style="min-height:56px;font-size:12.5px">&ldquo;기록은 기억보다 오래 남는다&rdquo; — 화면 속 문장이 자동으로 추출되어 검색에 포함됩니다.</div>
+            </div>
+            <div>
+              <div class="label">서랍 선택</div>
+              <div class="filter-row" style="padding:8px 0 0">
+                <span class="chip on">인용</span>
+                <span class="chip c1">아이디어</span>
+                <span class="chip c2">독서 메모</span>
+              </div>
+            </div>
+            <div class="btn-row">
+              <div class="btn ghost">글로 변환</div>
+              <div class="btn primary">조각 저장</div>
+            </div>
+          </div>
+        </div>
+        <div class="screen-note">
+          <h3><span class="num">2-5</span>화면 캡처 저장</h3>
+          <p>스크린샷 직후 공유 시트에서 바로 진입. 캡처 이미지와 출처(앱·URL)가 자동으로 붙고, OCR로 읽은 글자가 함께 저장되어 이미지도 텍스트처럼 검색됩니다. &lsquo;글로 변환&rsquo;을 누르면 OCR 텍스트만 남는 글 조각이 됩니다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. 노트북 연동 -->
+  <section>
+    <div class="sec-head">
+      <h2>3. 노트북(데스크톱) 화면</h2>
+      <span class="sub">수집의 본진 — 웹 앱 &amp; 글로벌 캡처</span>
+    </div>
+    <div class="browser">
+      <div class="chrome">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="url">jogak.app/desk</span>
+      </div>
+      <div class="desk">
+        <div class="pane-side">
+          <div class="side-title">조각</div>
+          <div class="side-item on">▤ 전체 조각 <span class="n">128</span></div>
+          <div class="side-item">💡 아이디어 <span class="n">46</span></div>
+          <div class="side-item">📖 독서 메모 <span class="n">31</span></div>
+          <div class="side-item">❝ 인용 <span class="n">24</span></div>
+          <div class="side-item">🌙 일기 조각 <span class="n">18</span></div>
+          <div class="side-item">⋯ 미분류함 <span class="n">9</span></div>
+        </div>
+        <div class="pane-main">
+          <div class="toolbar">
+            <span class="t">전체 조각</span>
+            <span class="sync"><span class="dot-live"></span>모바일과 동기화됨 · 방금 전</span>
+          </div>
+          <div class="masonry">
+            <div class="mcard">카드 앱의 핵심은 저장이 아니라 &lsquo;다시 만나게&rsquo; 하는 것.<div class="meta">아이디어 · 08:12</div></div>
+            <div class="mcard">&ldquo;쓴다는 것은 잊기 위해서가 아니라 다시 기억하기 위해서다.&rdquo;<div class="meta">인용 · 어제</div></div>
+            <div class="mcard">폴더 이름을 &lsquo;서랍&rsquo;이라고 부르는 것도 괜찮겠다.<div class="meta">아이디어 · 어제</div></div>
+            <div class="mcard">『생각의 탄생』 3장 — 관찰은 적극적 채집이다.<div class="meta">독서 메모 · 7.21</div></div>
+            <div class="mcard">밤 산책에서 본 가로등 불빛, 젖은 아스팔트.<div class="meta">일기 조각 · 7.20</div></div>
+            <div class="mcard">단축키 하나로 저장되는 경험이 이 앱의 전부일 수도.<div class="meta">아이디어 · 7.20</div></div>
+          </div>
+        </div>
+        <div class="pane-edit">
+          <div class="label">빠른 캡처 — 텍스트 <span class="hotkey">⌘⇧J</span> · 화면 <span class="hotkey">⌘⇧S</span></div>
+          <div class="paper">노트북에서 어떤 앱을 쓰고 있든, 단축키를 누르면 이 창이 떠서 한 조각을 바로 저장…</div>
+          <div style="margin-top:10px" class="paper">
+            <span style="color:var(--faint);font-size:11px">⌘⇧S 영역 캡처</span><br>
+            화면 일부를 드래그로 잘라 이미지 조각으로. 출처 앱·URL 자동 기록, OCR 텍스트 동시 저장.
+          </div>
+          <div class="btn-row" style="margin-top:12px">
+            <div class="btn primary" style="font-size:12.5px;padding:8px 0">저장 ↵</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sync-notes">
+      <div class="sync-note">
+        <b>글로벌 단축키 캡처</b>
+        <p>텍스트는 <span class="hotkey">⌘⇧J</span>, 화면은 <span class="hotkey">⌘⇧S</span> 한 번으로 캡처해 저장 즉시 모바일 피드에 나타납니다. 브라우저 확장으로 웹페이지 문장을 드래그해 인용 카드로 저장.</p>
+      </div>
+      <div class="sync-note">
+        <b>충돌 없는 동기화</b>
+        <p>카드는 작게 쪼개져 있어 충돌이 드뭅니다. 같은 카드를 양쪽에서 고치면 두 버전을 나란히 보여주고 고르게 합니다. 오프라인 작성분은 연결 시 자동 병합.</p>
+      </div>
+      <div class="sync-note">
+        <b>내 데이터는 파일로</b>
+        <p>전체 조각을 Markdown + JSON으로 내보내기. 서랍은 폴더 구조 그대로 저장되어, 앱을 떠나도 데이터는 온전히 내 것입니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. 사진 조각 -->
+  <section>
+    <div class="sec-head">
+      <h2>4. 사진 · 화면 캡처</h2>
+      <span class="sub">사진은 사본 저장으로 확정 · 캡처는 핵심 기능으로 승격</span>
+    </div>
+
+    <div class="related-label" style="margin-bottom:12px">사진 담기 — 확정안</div>
+    <div class="sync-notes" style="margin-top:0">
+      <div class="sync-note">
+        <b>사본 첨부 <span class="chip on" style="font-size:10px;vertical-align:2px">확정</span></b>
+        <p>드래그&amp;드롭·파일 선택·붙여넣기로 사진 <em>사본</em>을 카드에 저장합니다. 맥의 파일 선택 창에서 사진 앱 미디어 브라우저를 통해 사진첩 사진을 고를 수 있습니다. 원본과 독립적이라 가장 확실하고, 기기 간 동기화도 앱이 책임집니다.</p>
+      </div>
+      <div class="sync-note">
+        <b>iCloud 공유 링크 <span class="chip c3" style="font-size:10px;vertical-align:2px">보류</span></b>
+        <p>사본 방식으로 충분해 v1에서는 제외합니다. 저장 공간이 문제가 되면 나중에 다시 검토합니다.</p>
+      </div>
+      <div class="sync-note">
+        <b>사진첩 직접 참조 <span class="chip c1" style="font-size:10px;vertical-align:2px">네이티브 단계</span></b>
+        <p>사본 없이 원본을 참조하는 방식은 iOS/맥 네이티브 앱 단계에서 PhotoKit으로 얹습니다. 그때는 사진 앱 공유 시트에서 바로 &lsquo;조각으로 저장&rsquo;도 가능해집니다.</p>
+      </div>
+    </div>
+
+    <div class="related-label" style="margin:28px 0 12px">화면 캡처 — 강화 기능</div>
+    <div class="sync-notes" style="margin-top:0">
+      <div class="sync-note">
+        <b>노트북 영역 캡처 <span class="hotkey">⌘⇧S</span></b>
+        <p>어떤 앱을 쓰고 있든 단축키를 누르면 십자 커서로 화면 영역을 지정해 바로 조각으로 저장합니다. 캡처한 앱 이름과 브라우저 URL이 출처로 자동 기록됩니다.</p>
+      </div>
+      <div class="sync-note">
+        <b>모바일 스크린샷 → 조각</b>
+        <p>스크린샷을 찍은 직후 공유 시트에서 &lsquo;조각으로 저장&rsquo;을 누르면 캡처 저장 화면(2-5)으로 진입합니다. 잠금화면·홈 위젯 버튼으로도 한 번에 캡처 저장에 들어갈 수 있습니다.</p>
+      </div>
+      <div class="sync-note">
+        <b>캡처 OCR 검색</b>
+        <p>캡처 속 글자를 자동으로 읽어(OCR) 카드와 함께 저장합니다. 이미지 조각도 텍스트처럼 검색되고, &lsquo;글로 변환&rsquo; 버튼 한 번으로 순수한 글 조각이 됩니다.</p>
+      </div>
+    </div>
+
+    <p class="model-note">
+      정리하면 — 사진은 <b>사본 저장으로 확정</b>(iCloud 링크는 보류), 화면 캡처는
+      노트북 <b>⌘⇧S 영역 캡처</b> + 모바일 <b>공유 시트 저장</b> + <b>OCR 검색</b>까지 v1 범위입니다.
+      홈 피드(2-1)의 사진 카드와 새로 추가된 캡처 저장 화면(2-5)을 참고하세요.
+    </p>
+  </section>
+
+  <!-- 5. 데이터 구조 -->
+  <section>
+    <div class="sec-head">
+      <h2>5. 데이터 구조</h2>
+      <span class="sub">조각 = 카드 1장, 서랍 = 폴더</span>
+    </div>
+    <div class="model-grid">
+      <pre class="code">{
+  <span class="key">"id"</span>: <span class="str">"card_8f2k1"</span>,
+  <span class="key">"text"</span>: <span class="str">"카드 앱의 핵심은 저장이 아니라…"</span>,
+  <span class="key">"folders"</span>: [<span class="str">"folder_idea"</span>, <span class="str">"folder_app"</span>],
+  <span class="key">"source"</span>: {
+    <span class="key">"device"</span>: <span class="str">"macbook"</span>,
+    <span class="key">"context"</span>: <span class="str">"quick-capture"</span>,
+    <span class="key">"url"</span>: null
+  },
+  <span class="key">"attachments"</span>: [{
+    <span class="key">"type"</span>: <span class="str">"image"</span>,
+    <span class="key">"mode"</span>: <span class="str">"screenshot"</span>,  <span style="color:var(--faint)">// copy | screenshot | photokit(추후)</span>
+    <span class="key">"file"</span>: <span class="str">"shot_8f2k1.png"</span>,
+    <span class="key">"ocr_text"</span>: <span class="str">"기록은 기억보다 오래 남는다"</span>,
+    <span class="key">"capture_source"</span>: <span class="str">"Safari · blog.example.com"</span>
+  }],
+  <span class="key">"created_at"</span>: <span class="str">"2026-07-23T08:12:00+09:00"</span>,
+  <span class="key">"updated_at"</span>: <span class="str">"2026-07-23T09:05:00+09:00"</span>,
+  <span class="key">"pinned"</span>: false,
+  <span class="key">"archived"</span>: false
+}</pre>
+      <pre class="code">{
+  <span class="key">"id"</span>: <span class="str">"folder_idea"</span>,
+  <span class="key">"name"</span>: <span class="str">"아이디어"</span>,
+  <span class="key">"icon"</span>: <span class="str">"💡"</span>,
+  <span class="key">"color"</span>: <span class="str">"indigo"</span>,
+  <span class="key">"sort"</span>: 1,
+  <span class="key">"card_count"</span>: 46,
+  <span class="key">"created_at"</span>: <span class="str">"2026-06-01T10:00:00+09:00"</span>
+}</pre>
+    </div>
+    <p class="model-note">
+      카드가 <code style="font-family:var(--mono)">folders</code> 배열을 갖는 다대다 구조 — 한 조각이 여러 서랍에 동시에 꽂힐 수 있고,
+      배열이 비면 미분류함에 나타납니다. <code style="font-family:var(--mono)">source</code>에 작성 기기와 맥락(빠른 캡처, 브라우저 확장, 모바일)을
+      남겨 노트북 연동의 흐름을 추적합니다.
+    </p>
+  </section>
+
+  <!-- 6. 디자인 토큰 -->
+  <section>
+    <div class="sec-head">
+      <h2>6. 디자인 토큰</h2>
+      <span class="sub">쪽빛 팔레트 · 명조/고딕 페어링</span>
+    </div>
+    <div class="swatches">
+      <div class="swatch"><div class="color" style="background:#2D5BA8"></div><div class="info"><b>쪽빛 (액센트)</b><code>#2D5BA8</code></div></div>
+      <div class="swatch"><div class="color" style="background:#E3EAF6"></div><div class="info"><b>쪽빛 연함</b><code>#E3EAF6</code></div></div>
+      <div class="swatch"><div class="color" style="background:#F1F3F6"></div><div class="info"><b>바탕 (한지)</b><code>#F1F3F6</code></div></div>
+      <div class="swatch"><div class="color" style="background:#FFFFFF;border-bottom:1px solid var(--line)"></div><div class="info"><b>카드 표면</b><code>#FFFFFF</code></div></div>
+      <div class="swatch"><div class="color" style="background:#1B2430"></div><div class="info"><b>먹 (본문)</b><code>#1B2430</code></div></div>
+      <div class="swatch"><div class="color" style="background:#5C6672"></div><div class="info"><b>중간 회색</b><code>#5C6672</code></div></div>
+    </div>
+    <table class="type-table">
+      <tr><td class="role">디스플레이 · 명조</td><td class="t-display">조각을 모아 글이 된다</td></tr>
+      <tr><td class="role">인용 카드 · 명조</td><td class="t-quote">&ldquo;쓴다는 것은 다시 기억하기 위해서다.&rdquo;</td></tr>
+      <tr><td class="role">카드 본문 · 고딕</td><td class="t-card">일반 조각의 본문은 고딕 15px, 행간 1.6으로 편안하게.</td></tr>
+      <tr><td class="role">메타 정보</td><td class="t-meta">2026.07.23 08:12 · MacBook · 아이디어</td></tr>
+    </table>
+    <p class="model-note">
+      다크 테마는 시스템 설정을 따르며(이 문서도 동일), 쪽빛 액센트는 어두운 바탕에서 <code style="font-family:var(--mono)">#7FA4E0</code>으로 밝게 조정됩니다.
+      인용·상세 본문에만 명조를 쓰고 UI 전반은 고딕을 유지해, 화면이 &lsquo;글&rsquo;과 &lsquo;도구&rsquo;로 자연스럽게 나뉩니다.
+    </p>
+  </section>
+
+  <!-- 7. 다음 단계 -->
+  <section>
+    <div class="sec-head">
+      <h2>7. 다음 단계</h2>
+      <span class="sub">시안 확정 후 진행 순서</span>
+    </div>
+    <ol class="next">
+      <li><b>시안 피드백</b> — 화면 구성, 이름(조각/서랍), 컬러 방향에 대한 의견 반영</li>
+      <li><b>인터랙티브 프로토타입</b> — 실제로 카드를 작성·저장·분류할 수 있는 동작하는 웹 프로토타입 제작</li>
+      <li><b>동기화 설계</b> — 로컬 우선(local-first) 저장 + 클라우드 동기화 구조 결정</li>
+      <li><b>노트북 캡처 도구</b> — 텍스트(⌘⇧J)·화면(⌘⇧S) 캡처 단축키 앱과 브라우저 확장 설계, OCR 파이프라인 포함</li>
+      <li><b>모바일 앱 구현</b> — 이 저장소(claude-mobile)에서 개발 시작</li>
+    </ol>
+  </section>
+
+  <footer>
+    <span>조각 (JOGAK) · 카드 노트 앱 디자인 시안 v1</span>
+    <span>2026.07.23</span>
+  </footer>
+</div>

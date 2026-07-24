@@ -1,0 +1,164 @@
+/**
+ * Demo dataset for K-POP Comeback Radar.
+ * All numbers are fictional placeholders for demo/testing — not real chart data.
+ * The app ships in "demo mode" only: no external API keys, no network calls.
+ */
+const RADAR_DATA = {
+  artists: [
+    {
+      id: "boynextdoor",
+      name: "BOYNEXTDOOR",
+      emoji: "🏠",
+      type: "group",
+      members: 6,
+      genre: "팝 (Pop)",
+      catalogAlbums: 11,
+      latestRelease: { title: "Demo Single Vol.4", date: "2026-06-12", kind: "Single" },
+      latestVideo: { title: "Official Demo MV", channel: "Demo Ent.", date: "2026-06-12", views: "2.4M" },
+      score: 41,
+      status: { label: "관심도 관찰 중", tier: "watch" },
+      signals: { recency: 62, youtube: 38, catalog: 55, news: 21, sentiment: 47 },
+      history: [
+        { date: "2026-01", score: 18 },
+        { date: "2026-02", score: 22 },
+        { date: "2026-03", score: 29 },
+        { date: "2026-04", score: 33 },
+        { date: "2026-05", score: 36 },
+        { date: "2026-06", score: 41 }
+      ],
+      timeline: [
+        { date: "2026-06-12", label: "Demo Single Vol.4 발매", tag: "now" },
+        { date: "2026-03-02", label: "컴백 티저 공개" },
+        { date: "2025-11-18", label: "Demo Single Vol.3 발매" },
+        { date: "2025-06-04", label: "Demo Single Vol.2 발매" },
+        { date: "2024-12-11", label: "Demo Single Vol.1 발매" }
+      ],
+      releaseFrequency: {
+        avgIntervalDays: 210,
+        releasesLastYear: 2,
+        shortestIntervalDays: 45,
+        byFormat: [
+          { label: "싱글 앨범", count: 6 },
+          { label: "미니 앨범", count: 2 },
+          { label: "디지털 싱글", count: 3 }
+        ]
+      },
+      salesPrediction: {
+        firstWeek: { low: 180000, median: 260000, high: 340000 },
+        revenue: { low: 1200000000, median: 1900000000, high: 2700000000 },
+        assumptions: { physicalRatio: 50, streamMultiplier: 1.0 }
+      },
+      news: { global: [], korean: [] }
+    },
+    {
+      id: "riverline",
+      name: "RIVERLINE",
+      emoji: "🌊",
+      type: "group",
+      members: 5,
+      genre: "댄스 팝 (Dance Pop)",
+      catalogAlbums: 6,
+      latestRelease: { title: "Demo EP: Tideway", date: "2026-07-01", kind: "EP" },
+      latestVideo: { title: "Tideway Concept Film", channel: "Demo Ent.", date: "2026-07-01", views: "980K" },
+      score: 68,
+      status: { label: "컴백 신호 강함", tier: "hot" },
+      signals: { recency: 91, youtube: 74, catalog: 40, news: 63, sentiment: 72 },
+      history: [
+        { date: "2026-02", score: 24 },
+        { date: "2026-03", score: 31 },
+        { date: "2026-04", score: 40 },
+        { date: "2026-05", score: 52 },
+        { date: "2026-06", score: 61 },
+        { date: "2026-07", score: 68 }
+      ],
+      timeline: [
+        { date: "2026-07-01", label: "Tideway EP 발매", tag: "now" },
+        { date: "2026-05-20", label: "프리 싱글 공개" },
+        { date: "2026-01-09", label: "Demo Album Vol.1 발매" },
+        { date: "2025-08-14", label: "데뷔 싱글 발매" }
+      ],
+      releaseFrequency: {
+        avgIntervalDays: 150,
+        releasesLastYear: 3,
+        shortestIntervalDays: 60,
+        byFormat: [
+          { label: "싱글 앨범", count: 3 },
+          { label: "미니 앨범", count: 1 },
+          { label: "디지털 싱글", count: 2 }
+        ]
+      },
+      salesPrediction: {
+        firstWeek: { low: 90000, median: 150000, high: 210000 },
+        revenue: { low: 700000000, median: 1150000000, high: 1650000000 },
+        assumptions: { physicalRatio: 55, streamMultiplier: 1.1 }
+      },
+      news: {
+        global: [
+          { title: "Demo Global Feed: RIVERLINE comeback buzz builds ahead of EP release", source: "Demo Wire", date: "2026-07-02" }
+        ],
+        korean: [
+          { title: "[데모] 리버라인, 새 EP 발매 후 스트리밍 지표 상승", source: "데모 뉴스", date: "2026-07-02" }
+        ]
+      }
+    },
+    {
+      id: "solayoung",
+      name: "SOLA (솔로)",
+      emoji: "✨",
+      type: "solo",
+      members: 1,
+      genre: "R&B / 솔로",
+      catalogAlbums: 3,
+      latestRelease: { title: "Demo Single: Afterglow", date: "2026-05-22", kind: "Single" },
+      latestVideo: { title: "Afterglow Live Session", channel: "Demo Ent.", date: "2026-05-24", views: "410K" },
+      score: 29,
+      status: { label: "저조 구간, 관찰 중", tier: "cold" },
+      signals: { recency: 47, youtube: 22, catalog: 18, news: 14, sentiment: 33 },
+      history: [
+        { date: "2026-01", score: 12 },
+        { date: "2026-02", score: 15 },
+        { date: "2026-03", score: 19 },
+        { date: "2026-04", score: 24 },
+        { date: "2026-05", score: 29 },
+        { date: "2026-06", score: 27 }
+      ],
+      timeline: [
+        { date: "2026-05-22", label: "Afterglow 발매", tag: "now" },
+        { date: "2025-12-03", label: "피처링 트랙 공개" },
+        { date: "2025-02-17", label: "데뷔 싱글 발매" }
+      ],
+      releaseFrequency: {
+        avgIntervalDays: 260,
+        releasesLastYear: 1,
+        shortestIntervalDays: 90,
+        byFormat: [
+          { label: "싱글 앨범", count: 1 },
+          { label: "미니 앨범", count: 0 },
+          { label: "디지털 싱글", count: 2 }
+        ]
+      },
+      salesPrediction: {
+        firstWeek: { low: 8000, median: 15000, high: 24000 },
+        revenue: { low: 90000000, median: 160000000, high: 240000000 },
+        assumptions: { physicalRatio: 35, streamMultiplier: 0.9 }
+      },
+      news: { global: [], korean: [] }
+    }
+  ],
+
+  signalLabels: {
+    recency: "발매 최신성",
+    youtube: "YouTube 반응",
+    catalog: "Apple 카탈로그",
+    news: "뉴스 버즈",
+    sentiment: "AI 감성 지수"
+  },
+
+  apiConnections: [
+    { key: "apple", label: "Apple Music (iTunes Search)", note: "키 불필요", status: "good" },
+    { key: "youtube", label: "YouTube Data API", note: "demo key", status: "good" },
+    { key: "mediastack", label: "Mediastack (글로벌 뉴스)", note: "demo key", status: "good" },
+    { key: "naver", label: "Naver News API", note: "demo key", status: "good" },
+    { key: "solar", label: "Upstage Solar (AI 채팅)", note: "데모 응답", status: "warning" }
+  ]
+};

@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K-POP Comeback Radar — Demo</title>
+<meta name="description" content="Apple Music / YouTube / 뉴스 신호를 한 화면에서 추적하는 컴백 레이더 데모">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topnav">
+    <div class="brand">radar<span class="dot">.</span></div>
+    <div class="topnav-right">
+      <span class="live-pill"><span class="pulse"></span>demo live</span>
+      <button class="icon-btn" id="resetBtn" title="전체 데이터 초기화" aria-label="전체 데이터 초기화">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <section class="hero">
+    <div class="hero-left">
+      <div class="hero-watermark" id="heroWatermark">♪</div>
+      <div class="hero-eyebrow">
+        <span class="tag-now">now tracking</span>
+      </div>
+      <h1 class="hero-title" id="artistTitle">—</h1>
+      <p class="hero-desc">
+        Apple Music · YouTube · 글로벌/국내 뉴스 신호를 한 화면에서 추적하고,
+        신호 기반 데모 모델로 다음 컴백의 관심도를 추정합니다. 표시되는 모든 수치는
+        테스트용 데모 데이터입니다.
+      </p>
+      <div class="artist-select-row">
+        <select id="artistSelect" aria-label="아티스트 선택"></select>
+      </div>
+      <div class="badge-row">
+        <span class="badge" id="typeBadge">GROUP</span>
+        <span class="member-count" id="memberCount">멤버: —</span>
+      </div>
+    </div>
+    <div class="hero-divider"></div>
+    <div class="hero-right">
+      <div class="hero-right-head">
+        <span class="h-label">release timeline</span>
+        <span class="h-label" id="timelineRange">—</span>
+      </div>
+      <div id="timelineList"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="section-title"><span class="ico">●</span>API 연결</span>
+      <span class="section-sub">데모 모드 · 실제 네트워크 호출 없음</span>
+    </div>
+    <div class="demo-toggle">
+      <span>데모 모드 (API 없이 체험)</span>
+      <label class="switch">
+        <input type="checkbox" id="demoToggle" checked disabled>
+        <span class="track"></span>
+        <span class="knob"></span>
+      </label>
+    </div>
+    <div class="conn-list" id="connList"></div>
+  </section>
+
+  <section class="section">
+    <div class="grid-2">
+      <div>
+        <div class="section-head">
+          <span class="section-title"><span class="ico">♫</span>Apple Music Profile</span>
+        </div>
+        <div class="profile-line"><span>장르</span><b id="genre">—</b></div>
+        <div class="profile-line"><span>카탈로그 앨범 수</span><b id="catalogAlbums">—</b></div>
+        <div class="release-card">
+          <div class="cover" id="releaseCover">♪</div>
+          <div class="release-meta">
+            <div class="eyebrow">최신 발매작</div>
+            <div class="title" id="releaseTitle">—</div>
+            <div class="sub" id="releaseSub">—</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="section-head">
+          <span class="section-title"><span class="ico">▶</span>최신 공식 뮤직비디오</span>
+        </div>
+        <div class="video-card">
+          <div class="video-thumb"><span class="play">▶</span></div>
+          <div class="video-info">
+            <div class="title" id="videoTitle">—</div>
+            <div class="meta" id="videoMeta">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="section-title"><span class="ico">◆</span>Comeback Score</span>
+      <span class="section-sub">신호 기반 데모 추정치</span>
+    </div>
+    <div class="score-panel">
+      <div class="score-hero">
+        <div class="cap">현재 레이더 점수</div>
+        <div class="score-num" id="scoreNum">0</div>
+        <div class="score-status" id="scoreStatus">—</div>
+        <div class="sparkline-wrap">
+          <div class="cap">최근 추이</div>
+          <svg id="sparkline" width="100%" height="52" viewBox="0 0 220 52" preserveAspectRatio="none"></svg>
+        </div>
+      </div>
+      <div class="radar-wrap">
+        <div class="radar-svg-box">
+          <svg id="radarChart" width="320" height="260" viewBox="0 0 320 260"></svg>
+        </div>
+        <div class="signal-bars" id="signalBars"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="section-title"><span class="ico">▤</span>발매 빈도 분석 (싱글 포함)</span>
+      <span class="section-sub">카탈로그 기준 데모 집계</span>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-tile emph">
+        <div class="stat-label">평균 컴백 간격</div>
+        <div class="stat-value" id="freqAvg">—</div>
+      </div>
+      <div class="stat-tile emph">
+        <div class="stat-label">최근 1년 발매 횟수</div>
+        <div class="stat-value" id="freqLastYear">—</div>
+      </div>
+      <div class="stat-tile emph">
+        <div class="stat-label">최단 컴백 간격</div>
+        <div class="stat-value" id="freqShortest">—</div>
+      </div>
+    </div>
+    <div class="format-chart">
+      <div class="format-chart-head">
+        <span class="cap">포맷별 발매 횟수</span>
+      </div>
+      <svg id="formatChart" class="format-bars-svg" width="100%" height="200" viewBox="0 0 480 200" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <details class="expander">
+      <summary>발매 타임라인 상세 보기</summary>
+      <div class="expander-body" id="timelineDetail"></div>
+    </details>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="section-title"><span class="ico">◈</span>판매량 · 수익 예측</span>
+      <span class="pred-badge">◐ 신호 기반 추정</span>
+    </div>
+    <p class="pred-note">아직 실측 확정 데이터가 없어, 아래는 스트리밍/YouTube/뉴스 데모 신호로 만든 추정 일러스트레이션입니다.</p>
+
+    <div class="section-sub" style="margin-bottom:10px;">예상 초동 판매량 (물리 앨범)</div>
+    <div class="stat-grid">
+      <div class="stat-tile">
+        <div class="stat-label">하한</div>
+        <div class="stat-value" id="salesLow">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">중앙값</div>
+        <div class="stat-value" id="salesMedian">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">상한</div>
+        <div class="stat-value" id="salesHigh">—</div>
+      </div>
+    </div>
+
+    <div class="section-sub" style="margin:22px 0 10px;">예상 수익 (스트리밍 + 피지컬, 추정치)</div>
+    <div class="stat-grid">
+      <div class="stat-tile">
+        <div class="stat-label">하한</div>
+        <div class="stat-value" id="revLow">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">중앙값</div>
+        <div class="stat-value" id="revMedian">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">상한</div>
+        <div class="stat-value" id="revHigh">—</div>
+      </div>
+    </div>
+    <p class="pred-note small">이 금액은 공개된 업계 벤치마크 가정치를 적용한 추정 일러스트레이션입니다. 실제 기획사 정산 구조·유통 계약·프로모션 앨범 비중에 따라 크게 달라질 수 있습니다.</p>
+
+    <details class="expander">
+      <summary>수익 계산 가정치 직접 조정해보기</summary>
+      <div class="expander-body">
+        <div class="assump-row">
+          <div class="assump-label"><span>피지컬 판매 비중</span><b id="physRatioVal">—%</b></div>
+          <input type="range" id="physRatioSlider" min="10" max="90" step="5">
+        </div>
+        <div class="assump-row">
+          <div class="assump-label"><span>스트리밍 단가 가정 배수</span><b id="streamMultVal">—x</b></div>
+          <input type="range" id="streamMultSlider" min="60" max="140" step="5">
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="section-title"><span class="ico">▦</span>Comeback News Monitor</span>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" id="tabGlobal" data-tab="global">🌐 Global News</button>
+      <button class="tab-btn" id="tabKorean" data-tab="korean">🇰🇷 Korean News</button>
+    </div>
+    <div class="section-sub" id="newsSourceNote" style="margin-bottom:12px;">Mediastack을 통해 수집한 영문권 기사입니다. (데모)</div>
+    <div class="news-list" id="newsList"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="section-title"><span class="ico">✦</span>아티스트에게 물어보기</span>
+      <span class="section-sub">데모 응답 · Upstage Solar 미연결</span>
+    </div>
+    <div class="chat-box">
+      <div class="chat-log" id="chatLog"></div>
+      <div class="chat-input-row">
+        <input id="chatInput" type="text" placeholder="예: 지금 컴백 신호 어때?">
+        <button class="send-btn" id="chatSend" aria-label="전송">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg>
+        </button>
+      </div>
+      <div class="chat-note">데모 모드 응답입니다. 실제 AI 모델 호출은 이루어지지 않습니다.</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="section-title"><span class="ico">⟲</span>데이터 관리</span>
+    </div>
+    <div class="data-panel">
+      <p>선택한 아티스트, 채팅 기록 등 이 브라우저에 저장된 테스트 데이터를 한 번에 삭제합니다.
+        서버로 전송되는 데이터는 없으며, 삭제 후에는 기본 상태로 되돌아갑니다.</p>
+      <button class="danger-btn" id="clearAllBtn">전체 데이터 초기화</button>
+    </div>
+  </section>
+
+  <div class="footer">
+    <span>K-POP Comeback Radar — demo build</span>
+    <span class="ring"></span>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

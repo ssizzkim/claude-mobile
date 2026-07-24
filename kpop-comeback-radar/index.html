@@ -9,11 +9,15 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<div class="page-frame">
+  <div class="side-rail left" aria-hidden="true"><span>K-POP · COMEBACK · RADAR · </span></div>
+
 <div class="wrap">
 
   <div class="topnav">
     <div class="brand">radar<span class="dot">.</span></div>
     <div class="topnav-right">
+      <span class="live-clock" id="liveClock">--:--:--</span>
       <span class="live-pill"><span class="pulse"></span>demo live</span>
       <button class="icon-btn" id="resetBtn" title="전체 데이터 초기화" aria-label="전체 데이터 초기화">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
@@ -23,6 +27,7 @@
 
   <section class="hero">
     <div class="hero-left">
+      <div class="hero-watermark-glow" aria-hidden="true"></div>
       <div class="hero-watermark" id="heroWatermark">♪</div>
       <div class="hero-eyebrow">
         <span class="tag-now">now tracking</span>
@@ -109,6 +114,7 @@
         <div class="cap">현재 레이더 점수</div>
         <div class="score-num" id="scoreNum">0</div>
         <div class="score-status" id="scoreStatus">—</div>
+        <div class="last-update"><span class="live-dot"></span><span id="lastUpdate">업데이트 대기 중</span></div>
         <div class="sparkline-wrap">
           <div class="cap">최근 추이</div>
           <svg id="sparkline" width="100%" height="52" viewBox="0 0 220 52" preserveAspectRatio="none"></svg>
@@ -254,6 +260,9 @@
     <span class="ring"></span>
   </div>
 
+</div>
+
+  <div class="side-rail right" id="rightRail" aria-hidden="true"><span>—</span></div>
 </div>
 
 <div class="toast" id="toast"></div>

@@ -51,13 +51,24 @@
     tabGlobal: document.getElementById("tabGlobal"),
     tabKorean: document.getElementById("tabKorean"),
     newsSourceNote: document.getElementById("newsSourceNote"),
-    newsList: document.getElementById("newsList")
+    newsList: document.getElementById("newsList"),
+    liveClock: document.getElementById("liveClock"),
+    lastUpdate: document.getElementById("lastUpdate"),
+    rightRail: document.getElementById("rightRail")
   };
 
   let currentArtist = null;
   let chatHistory = [];
   let toastTimer = null;
   let activeNewsTab = "global";
+
+  // live jitter state — purely cosmetic, simulates a "live" feed on top of the
+  // fixed demo baseline in data.js; never persisted, never affects real data.
+  let liveScore = 0;
+  let liveSignalState = {};
+  let radarLiveRatios = [];
+  let jitterTimer = null;
+  let lastUpdateAt = 0;
 
   // ---------- helpers ----------
   function findArtist(id) {
@@ -85,6 +96,103 @@
 
   const won = (v) => `₩${Math.round(v).toLocaleString("ko-KR")}`;
   const sheets = (v) => `${Math.round(v).toLocaleString("ko-KR")}장`;
+
+  // ---------- live clock + "last updated" ticker ----------
+  function tickClock() {
+    els.liveClock.textContent = new Date().toLocaleTimeString("ko-KR", { hour12: false });
+    updateLastUpdateText();
+  }
+
+  function updateLastUpdateText() {
+    if (!lastUpdateAt) return;
+    const secs = Math.floor((Date.now() - lastUpdateAt) / 1000);
+    els.lastUpdate.textContent = secs < 2 ? "방금 업데이트됨" : `${secs}초 전 업데이트`;
+  }
+
+  function startClockLoop() {
+    tickClock();
+    setInterval(tickClock, 1000);
+  }
+
+  // ---------- live signal jitter (cosmetic, demo-only) ----------
+  function clampDrift(current, base, maxStep, maxDrift) {
+    let delta = (Math.random() * 2 - 1) * maxStep;
+    if (Math.abs(current + delta - base) > maxDrift) {
+      delta = (base - current) * 0.4 + (Math.random() * 2 - 1) * (maxStep * 0.3);
+    }
+    return Math.max(0, Math.min(100, Math.round(current + delta)));
+  }
+
+  function updateSignalBarsLive(signals) {
+    const keys = Object.keys(RADAR_DATA.signalLabels);
+    const rows = els.signalBars.querySelectorAll(".signal-bar-row");
+    keys.forEach((k, i) => {
+      const row = rows[i];
+      if (!row) return;
+      row.querySelector(".bar-fill").style.width = signals[k] + "%";
+      row.querySelector(".label-row b").textContent = Math.round(signals[k]);
+    });
+  }
+
+  function tweenRadarTo(newSignals, duration) {
+    const poly = document.getElementById("radarPoly");
+    if (!poly) return;
+    const keys = Object.keys(RADAR_DATA.signalLabels);
+    const cx = 160, cy = 130, radius = 92;
+    const angleStep = (Math.PI * 2) / keys.length;
+    const pt = (i, ratio) => {
+      const angle = -Math.PI / 2 + i * angleStep;
+      return [cx + Math.cos(angle) * radius * ratio, cy + Math.sin(angle) * radius * ratio];
+    };
+    const dots = els.radarChart.querySelectorAll(".radar-dot");
+    const fromRatios = radarLiveRatios.slice();
+    const toRatios = keys.map((k) => newSignals[k] / 100);
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const curRatios = fromRatios.map((f, i) => f + (toRatios[i] - f) * eased);
+      poly.setAttribute("points", curRatios.map((r, i) => pt(i, r).join(",")).join(" "));
+      curRatios.forEach((r, i) => {
+        const [x, y] = pt(i, r);
+        if (dots[i]) { dots[i].setAttribute("cx", x); dots[i].setAttribute("cy", y); }
+      });
+      if (t < 1) requestAnimationFrame(tick);
+      else radarLiveRatios = toRatios;
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function jitterTick() {
+    if (!currentArtist) return;
+    const base = currentArtist;
+    liveScore = clampDrift(liveScore, base.score, 3, 5);
+    const newSignals = {};
+    Object.keys(base.signals).forEach((k) => {
+      liveSignalState[k] = clampDrift(liveSignalState[k], base.signals[k], 5, 8);
+      newSignals[k] = liveSignalState[k];
+    });
+    animateNumber(els.scoreNum, liveScore, 700);
+    updateSignalBarsLive(newSignals);
+    tweenRadarTo(newSignals, 700);
+    lastUpdateAt = Date.now();
+    updateLastUpdateText();
+  }
+
+  function scheduleJitter() {
+    clearTimeout(jitterTimer);
+    const delay = 3500 + Math.random() * 2500;
+    jitterTimer = setTimeout(() => { jitterTick(); scheduleJitter(); }, delay);
+  }
+
+  function resetLiveState(artist) {
+    liveScore = artist.score;
+    liveSignalState = { ...artist.signals };
+    radarLiveRatios = Object.keys(RADAR_DATA.signalLabels).map((k) => artist.signals[k] / 100);
+    lastUpdateAt = Date.now();
+    updateLastUpdateText();
+    scheduleJitter();
+  }
 
   // ---------- populate selector ----------
   function populateSelect() {
@@ -216,7 +324,7 @@
         style="transform-origin:${cx}px ${cy}px; transform:scale(0); transition:transform 1s cubic-bezier(.2,.8,.2,1);"></polygon>`;
     keys.forEach((k, i) => {
       const [x, y] = pt(i, artist.signals[k] / 100);
-      svg += `<circle cx="${x}" cy="${y}" r="3" fill="var(--accent-dark)"></circle>`;
+      svg += `<circle class="radar-dot" cx="${x}" cy="${y}" r="3" fill="var(--accent-dark)"></circle>`;
     });
 
     els.radarChart.innerHTML = svg;
@@ -446,6 +554,8 @@
     renderSalesPrediction(currentArtist);
     activeNewsTab = "global";
     setNewsTab("global");
+    els.rightRail.querySelector("span").textContent = `${currentArtist.name} · ${currentArtist.genre}`;
+    resetLiveState(currentArtist);
     if (persist) localStorage.setItem(STORAGE.artist, currentArtist.id);
   }
 
@@ -487,6 +597,8 @@
     els.streamMultSlider.addEventListener("input", () => computeAndRenderPrediction(currentArtist));
     els.tabGlobal.addEventListener("click", () => setNewsTab("global"));
     els.tabKorean.addEventListener("click", () => setNewsTab("korean"));
+
+    startClockLoop();
   }
 
   document.addEventListener("DOMContentLoaded", init);

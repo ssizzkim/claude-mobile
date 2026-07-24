@@ -105,9 +105,10 @@ a { color: inherit; }
   align-items: center;
   justify-content: space-between;
   border: 1px solid var(--line);
-  border-bottom: none;
+  border-radius: var(--radius);
   background: var(--surface-1);
   padding: 14px 20px;
+  margin-bottom: 16px;
 }
 .topnav .brand {
   font-weight: 800;
@@ -173,9 +174,11 @@ a { color: inherit; }
   display: grid;
   grid-template-columns: 1.1fr 1px 1fr;
   border: 1px solid var(--line);
+  border-radius: var(--radius);
   background: var(--surface-1);
   position: relative;
   overflow: hidden;
+  margin-bottom: 16px;
 }
 .hero-divider { background: var(--line); }
 
@@ -337,9 +340,21 @@ select#artistSelect {
 /* ---------- Section shell ---------- */
 .section {
   border: 1px solid var(--line);
-  border-top: none;
+  border-radius: var(--radius);
   background: var(--surface-1);
   padding: 26px 30px;
+  margin-bottom: 16px;
+}
+
+/* ---------- Scroll reveal ---------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1);
+}
+.reveal.in {
+  opacity: 1;
+  transform: translateY(0);
 }
 .section-head {
   display: flex;
@@ -356,7 +371,8 @@ select#artistSelect {
   align-items: center;
   gap: 8px;
 }
-.section-title .ico { color: var(--accent); }
+.section-title .ico { color: var(--accent); display: inline-flex; }
+.section-title .ico svg { width: 15px; height: 15px; display: block; }
 .section-sub { font-size: 12px; color: var(--text-muted); }
 
 .grid-2 {
@@ -614,13 +630,10 @@ select#artistSelect {
 
 /* ---------- Footer ---------- */
 .footer {
-  border: 1px solid var(--line);
-  border-top: none;
-  padding: 16px 30px;
+  padding: 10px 6px 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: var(--surface-1);
   font-size: 11px;
   color: var(--text-muted);
 }
@@ -707,7 +720,7 @@ details.expander .expander-body {
 .pred-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   border: 1px solid var(--warning);
   color: var(--accent-dark);
   background: color-mix(in srgb, var(--warning) 12%, transparent);
@@ -764,6 +777,7 @@ input[type="range"]::-moz-range-thumb {
 .tab-btn {
   background: none; border: none; cursor: pointer;
   padding: 0 0 10px;
+  display: inline-flex; align-items: center; gap: 6px;
   font-size: 13.5px; font-weight: 700;
   color: var(--text-muted);
   border-bottom: 2px solid transparent;

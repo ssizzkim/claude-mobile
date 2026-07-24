@@ -125,6 +125,104 @@
 
   <section class="section">
     <div class="section-head">
+      <span class="section-title"><span class="ico">▤</span>발매 빈도 분석 (싱글 포함)</span>
+      <span class="section-sub">카탈로그 기준 데모 집계</span>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-tile emph">
+        <div class="stat-label">평균 컴백 간격</div>
+        <div class="stat-value" id="freqAvg">—</div>
+      </div>
+      <div class="stat-tile emph">
+        <div class="stat-label">최근 1년 발매 횟수</div>
+        <div class="stat-value" id="freqLastYear">—</div>
+      </div>
+      <div class="stat-tile emph">
+        <div class="stat-label">최단 컴백 간격</div>
+        <div class="stat-value" id="freqShortest">—</div>
+      </div>
+    </div>
+    <div class="format-chart">
+      <div class="format-chart-head">
+        <span class="cap">포맷별 발매 횟수</span>
+      </div>
+      <svg id="formatChart" class="format-bars-svg" width="100%" height="200" viewBox="0 0 480 200" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <details class="expander">
+      <summary>발매 타임라인 상세 보기</summary>
+      <div class="expander-body" id="timelineDetail"></div>
+    </details>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="section-title"><span class="ico">◈</span>판매량 · 수익 예측</span>
+      <span class="pred-badge">◐ 신호 기반 추정</span>
+    </div>
+    <p class="pred-note">아직 실측 확정 데이터가 없어, 아래는 스트리밍/YouTube/뉴스 데모 신호로 만든 추정 일러스트레이션입니다.</p>
+
+    <div class="section-sub" style="margin-bottom:10px;">예상 초동 판매량 (물리 앨범)</div>
+    <div class="stat-grid">
+      <div class="stat-tile">
+        <div class="stat-label">하한</div>
+        <div class="stat-value" id="salesLow">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">중앙값</div>
+        <div class="stat-value" id="salesMedian">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">상한</div>
+        <div class="stat-value" id="salesHigh">—</div>
+      </div>
+    </div>
+
+    <div class="section-sub" style="margin:22px 0 10px;">예상 수익 (스트리밍 + 피지컬, 추정치)</div>
+    <div class="stat-grid">
+      <div class="stat-tile">
+        <div class="stat-label">하한</div>
+        <div class="stat-value" id="revLow">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">중앙값</div>
+        <div class="stat-value" id="revMedian">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-label">상한</div>
+        <div class="stat-value" id="revHigh">—</div>
+      </div>
+    </div>
+    <p class="pred-note small">이 금액은 공개된 업계 벤치마크 가정치를 적용한 추정 일러스트레이션입니다. 실제 기획사 정산 구조·유통 계약·프로모션 앨범 비중에 따라 크게 달라질 수 있습니다.</p>
+
+    <details class="expander">
+      <summary>수익 계산 가정치 직접 조정해보기</summary>
+      <div class="expander-body">
+        <div class="assump-row">
+          <div class="assump-label"><span>피지컬 판매 비중</span><b id="physRatioVal">—%</b></div>
+          <input type="range" id="physRatioSlider" min="10" max="90" step="5">
+        </div>
+        <div class="assump-row">
+          <div class="assump-label"><span>스트리밍 단가 가정 배수</span><b id="streamMultVal">—x</b></div>
+          <input type="range" id="streamMultSlider" min="60" max="140" step="5">
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <span class="section-title"><span class="ico">▦</span>Comeback News Monitor</span>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" id="tabGlobal" data-tab="global">🌐 Global News</button>
+      <button class="tab-btn" id="tabKorean" data-tab="korean">🇰🇷 Korean News</button>
+    </div>
+    <div class="section-sub" id="newsSourceNote" style="margin-bottom:12px;">Mediastack을 통해 수집한 영문권 기사입니다. (데모)</div>
+    <div class="news-list" id="newsList"></div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
       <span class="section-title"><span class="ico">✦</span>아티스트에게 물어보기</span>
       <span class="section-sub">데모 응답 · Upstage Solar 미연결</span>
     </div>

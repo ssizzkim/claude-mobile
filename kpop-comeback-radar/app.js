@@ -32,12 +32,32 @@
     chatSend: document.getElementById("chatSend"),
     resetBtn: document.getElementById("resetBtn"),
     clearAllBtn: document.getElementById("clearAllBtn"),
-    toast: document.getElementById("toast")
+    toast: document.getElementById("toast"),
+    freqAvg: document.getElementById("freqAvg"),
+    freqLastYear: document.getElementById("freqLastYear"),
+    freqShortest: document.getElementById("freqShortest"),
+    formatChart: document.getElementById("formatChart"),
+    timelineDetail: document.getElementById("timelineDetail"),
+    salesLow: document.getElementById("salesLow"),
+    salesMedian: document.getElementById("salesMedian"),
+    salesHigh: document.getElementById("salesHigh"),
+    revLow: document.getElementById("revLow"),
+    revMedian: document.getElementById("revMedian"),
+    revHigh: document.getElementById("revHigh"),
+    physRatioSlider: document.getElementById("physRatioSlider"),
+    physRatioVal: document.getElementById("physRatioVal"),
+    streamMultSlider: document.getElementById("streamMultSlider"),
+    streamMultVal: document.getElementById("streamMultVal"),
+    tabGlobal: document.getElementById("tabGlobal"),
+    tabKorean: document.getElementById("tabKorean"),
+    newsSourceNote: document.getElementById("newsSourceNote"),
+    newsList: document.getElementById("newsList")
   };
 
   let currentArtist = null;
   let chatHistory = [];
   let toastTimer = null;
+  let activeNewsTab = "global";
 
   // ---------- helpers ----------
   function findArtist(id) {
@@ -51,16 +71,20 @@
     toastTimer = setTimeout(() => els.toast.classList.remove("show"), 2200);
   }
 
-  function animateNumber(el, to, duration) {
+  function animateNumber(el, to, duration, format) {
+    const fmt = format || ((v) => String(Math.round(v)));
     const start = performance.now();
     function tick(now) {
       const t = Math.min(1, (now - start) / duration);
       const eased = 1 - Math.pow(1 - t, 3);
-      el.textContent = Math.round(to * eased);
+      el.textContent = fmt(to * eased);
       if (t < 1) requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
   }
+
+  const won = (v) => `₩${Math.round(v).toLocaleString("ko-KR")}`;
+  const sheets = (v) => `${Math.round(v).toLocaleString("ko-KR")}장`;
 
   // ---------- populate selector ----------
   function populateSelect() {
@@ -221,6 +245,131 @@
     });
   }
 
+  // ---------- release frequency ----------
+  function renderReleaseFrequency(artist) {
+    const f = artist.releaseFrequency;
+    els.freqAvg.textContent = `${f.avgIntervalDays}일`;
+    els.freqLastYear.textContent = `${f.releasesLastYear}회`;
+    els.freqShortest.textContent = `${f.shortestIntervalDays}일`;
+    drawFormatChart(f.byFormat);
+    renderTimelineDetail(artist.timeline);
+  }
+
+  function drawFormatChart(byFormat) {
+    const w = 480, h = 200;
+    const padL = 30, padR = 10, padT = 24, padB = 30;
+    const chartW = w - padL - padR;
+    const chartH = h - padT - padB;
+    const max = Math.max(...byFormat.map((f) => f.count), 1);
+    const gap = 28;
+    const barW = (chartW - gap * (byFormat.length - 1)) / byFormat.length;
+
+    let svg = "";
+    // gridlines
+    const gridSteps = 4;
+    for (let i = 0; i <= gridSteps; i++) {
+      const y = padT + chartH - (chartH / gridSteps) * i;
+      const val = Math.round((max / gridSteps) * i);
+      svg += `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="var(--line)" stroke-width="1"></line>`;
+      svg += `<text x="${padL - 8}" y="${y + 3}" text-anchor="end" font-size="10" fill="var(--text-muted)">${val}</text>`;
+    }
+
+    byFormat.forEach((f, i) => {
+      const x = padL + i * (barW + gap);
+      const targetH = max ? (f.count / max) * chartH : 0;
+      const y = padT + chartH - targetH;
+      svg += `<rect x="${x}" y="${padT + chartH}" width="${barW}" height="0" rx="3" fill="var(--accent)" data-y="${y}" data-h="${targetH}" class="fmt-bar"></rect>`;
+      svg += `<text x="${x + barW / 2}" y="${y - 8}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--text-primary)" class="fmt-val" data-final="${y - 8}">0</text>`;
+      svg += `<text x="${x + barW / 2}" y="${h - 8}" text-anchor="middle" font-size="11" fill="var(--text-secondary)">${f.label}</text>`;
+    });
+
+    els.formatChart.innerHTML = svg;
+
+    requestAnimationFrame(() => {
+      els.formatChart.querySelectorAll(".fmt-bar").forEach((bar, i) => {
+        bar.style.transition = "y 0.9s cubic-bezier(.2,.8,.2,1), height 0.9s cubic-bezier(.2,.8,.2,1)";
+        bar.setAttribute("y", bar.dataset.y);
+        bar.setAttribute("height", bar.dataset.h);
+      });
+      const labels = els.formatChart.querySelectorAll(".fmt-val");
+      byFormat.forEach((f, i) => animateNumber(labels[i], f.count, 900));
+    });
+  }
+
+  function renderTimelineDetail(timeline) {
+    els.timelineDetail.innerHTML = timeline
+      .map(
+        (t) => `
+        <div class="timeline-row">
+          <div class="timeline-date">${t.tag === "now" ? '<span class="now">now</span>' : t.date}</div>
+          <div class="timeline-label">${t.label}</div>
+          <div></div>
+        </div>`
+      )
+      .join("");
+  }
+
+  // ---------- sales / revenue prediction ----------
+  function renderSalesPrediction(artist) {
+    const a = artist.salesPrediction.assumptions;
+    els.physRatioSlider.value = a.physicalRatio;
+    els.streamMultSlider.value = Math.round(a.streamMultiplier * 100);
+    computeAndRenderPrediction(artist);
+  }
+
+  function computeAndRenderPrediction(artist) {
+    const base = artist.salesPrediction;
+    const baseRatio = base.assumptions.physicalRatio;
+    const baseMult = base.assumptions.streamMultiplier;
+    const curRatio = Number(els.physRatioSlider.value);
+    const curMult = Number(els.streamMultSlider.value) / 100;
+
+    els.physRatioVal.textContent = `${curRatio}%`;
+    els.streamMultVal.textContent = `${curMult.toFixed(2)}x`;
+
+    const physFactor = curRatio / baseRatio;
+    const revFactor = (curRatio / baseRatio) * 0.5 + (curMult / baseMult) * 0.5;
+
+    animateNumber(els.salesLow, base.firstWeek.low * physFactor, 500, sheets);
+    animateNumber(els.salesMedian, base.firstWeek.median * physFactor, 500, sheets);
+    animateNumber(els.salesHigh, base.firstWeek.high * physFactor, 500, sheets);
+
+    animateNumber(els.revLow, base.revenue.low * revFactor, 500, won);
+    animateNumber(els.revMedian, base.revenue.median * revFactor, 500, won);
+    animateNumber(els.revHigh, base.revenue.high * revFactor, 500, won);
+  }
+
+  // ---------- news monitor ----------
+  const NEWS_NOTES = {
+    global: "Mediastack을 통해 수집한 영문권 기사입니다. (데모)",
+    korean: "Naver News를 통해 수집한 국내 기사입니다. (데모)"
+  };
+
+  function setNewsTab(tab) {
+    activeNewsTab = tab;
+    els.tabGlobal.classList.toggle("active", tab === "global");
+    els.tabKorean.classList.toggle("active", tab === "korean");
+    els.newsSourceNote.textContent = NEWS_NOTES[tab];
+    renderNews(currentArtist);
+  }
+
+  function renderNews(artist) {
+    const items = artist.news[activeNewsTab] || [];
+    if (!items.length) {
+      els.newsList.innerHTML = `<div class="news-empty">표시할 뉴스가 없습니다.</div>`;
+      return;
+    }
+    els.newsList.innerHTML = items
+      .map(
+        (n) => `
+        <div class="news-item">
+          <div class="news-title">${n.title}</div>
+          <div class="news-meta">${n.source} · ${n.date}</div>
+        </div>`
+      )
+      .join("");
+  }
+
   // ---------- hero / badges ----------
   function renderHero(artist) {
     els.artistTitle.textContent = artist.name;
@@ -293,6 +442,10 @@
     renderScore(currentArtist);
     drawRadar(currentArtist);
     renderSignalBars(currentArtist);
+    renderReleaseFrequency(currentArtist);
+    renderSalesPrediction(currentArtist);
+    activeNewsTab = "global";
+    setNewsTab("global");
     if (persist) localStorage.setItem(STORAGE.artist, currentArtist.id);
   }
 
@@ -329,6 +482,11 @@
     els.chatSend.addEventListener("click", sendChat);
     els.resetBtn.addEventListener("click", clearAllData);
     els.clearAllBtn.addEventListener("click", clearAllData);
+
+    els.physRatioSlider.addEventListener("input", () => computeAndRenderPrediction(currentArtist));
+    els.streamMultSlider.addEventListener("input", () => computeAndRenderPrediction(currentArtist));
+    els.tabGlobal.addEventListener("click", () => setNewsTab("global"));
+    els.tabKorean.addEventListener("click", () => setNewsTab("korean"));
   }
 
   document.addEventListener("DOMContentLoaded", init);

@@ -559,3 +559,148 @@ select#artistSelect {
   z-index: 50;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ---------- Stat tiles ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+@media (max-width: 720px) { .stat-grid { grid-template-columns: 1fr; } }
+.stat-tile {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 16px;
+  text-align: center;
+}
+.stat-tile .stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+.stat-tile .stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.stat-tile.emph .stat-value { color: var(--accent-dark); font-size: 30px; }
+.stat-tile .stat-sub { margin-top: 8px; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* ---------- Format bar chart ---------- */
+.format-chart { margin-top: 22px; }
+.format-chart-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.format-chart-head .cap { font-size: 12px; color: var(--text-muted); }
+.format-bars-svg { width: 100%; height: auto; }
+
+/* ---------- details / timeline expander ---------- */
+details.expander {
+  margin-top: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+details.expander summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+details.expander summary::-webkit-details-marker { display: none; }
+details.expander summary::before {
+  content: "›";
+  display: inline-block;
+  transition: transform .15s;
+  font-weight: 800;
+}
+details.expander[open] summary::before { transform: rotate(90deg); }
+details.expander .expander-body {
+  padding: 4px 16px 16px;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------- Prediction badge + disclaimer ---------- */
+.pred-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--warning);
+  color: var(--accent-dark);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.pred-note {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 10px 0 20px;
+}
+.pred-note.small { font-size: 11.5px; color: var(--text-muted); margin: 12px 0 0; }
+
+/* ---------- Assumption sliders ---------- */
+.assump-row { margin-bottom: 18px; }
+.assump-row:last-child { margin-bottom: 0; }
+.assump-row .assump-label {
+  display: flex; justify-content: space-between;
+  font-size: 12.5px; margin-bottom: 8px;
+}
+.assump-row .assump-label b { color: var(--accent-dark); font-variant-numeric: tabular-nums; }
+input[type="range"] {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent-dark);
+  border: 2px solid var(--surface-1);
+  box-shadow: 0 0 0 1px var(--accent-dark);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent-dark);
+  border: 2px solid var(--surface-1);
+  box-shadow: 0 0 0 1px var(--accent-dark);
+  cursor: pointer;
+}
+
+/* ---------- Tabs (news monitor) ---------- */
+.tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.tab-btn {
+  background: none; border: none; cursor: pointer;
+  padding: 0 0 10px;
+  font-size: 13.5px; font-weight: 700;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.tab-btn.active { color: var(--accent-dark); border-bottom-color: var(--accent-dark); }
+
+.news-list { display: flex; flex-direction: column; gap: 10px; }
+.news-item {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  font-size: 13px;
+}
+.news-item .news-title { font-weight: 600; margin-bottom: 4px; }
+.news-item .news-meta { font-size: 11.5px; color: var(--text-muted); }
+.news-empty {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 26px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}

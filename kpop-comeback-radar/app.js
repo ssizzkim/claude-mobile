@@ -62,6 +62,21 @@
   let toastTimer = null;
   let activeNewsTab = "global";
 
+  // scroll-reveal: numbers/graphs animate in only once their section scrolls into view
+  const revealState = {};
+  const pendingReveal = {};
+  function reveal(key, fn) {
+    pendingReveal[key] = fn;
+    if (revealState[key]) fn();
+  }
+  function runReveal(key) {
+    revealState[key] = true;
+    if (pendingReveal[key]) pendingReveal[key]();
+  }
+
+  const PLAY_ICON = '<svg viewBox="0 0 24 24" width="12" height="12"><path d="M8 5.5v13l11-6.5-11-6.5z" fill="currentColor"/></svg>';
+  const initial = (name) => (name || "?").trim().charAt(0).toUpperCase();
+
   // live jitter state — purely cosmetic, simulates a "live" feed on top of the
   // fixed demo baseline in data.js; never persisted, never affects real data.
   let liveScore = 0;
@@ -166,15 +181,15 @@
   function jitterTick() {
     if (!currentArtist) return;
     const base = currentArtist;
-    liveScore = clampDrift(liveScore, base.score, 3, 5);
+    liveScore = clampDrift(liveScore, base.score, 9, 16);
     const newSignals = {};
     Object.keys(base.signals).forEach((k) => {
-      liveSignalState[k] = clampDrift(liveSignalState[k], base.signals[k], 5, 8);
+      liveSignalState[k] = clampDrift(liveSignalState[k], base.signals[k], 12, 20);
       newSignals[k] = liveSignalState[k];
     });
-    animateNumber(els.scoreNum, liveScore, 700);
+    animateNumber(els.scoreNum, liveScore, 800);
     updateSignalBarsLive(newSignals);
-    tweenRadarTo(newSignals, 700);
+    tweenRadarTo(newSignals, 800);
     lastUpdateAt = Date.now();
     updateLastUpdateText();
   }
@@ -197,7 +212,7 @@
   // ---------- populate selector ----------
   function populateSelect() {
     els.artistSelect.innerHTML = RADAR_DATA.artists
-      .map((a) => `<option value="${a.id}">${a.emoji} ${a.name}</option>`)
+      .map((a) => `<option value="${a.id}">${a.name}</option>`)
       .join("");
   }
 
@@ -228,7 +243,7 @@
         <div class="timeline-row">
           <div class="timeline-date">${isNow ? '<span class="now">now</span>' : `${m}<br>${d}`}</div>
           <div class="timeline-label">${t.label}</div>
-          <div class="timeline-play">${isNow ? "▶" : ""}</div>
+          <div class="timeline-play">${isNow ? PLAY_ICON : ""}</div>
         </div>`;
       })
       .join("");
@@ -238,7 +253,7 @@
   function renderProfile(artist) {
     els.genre.textContent = artist.genre;
     els.catalogAlbums.textContent = artist.catalogAlbums;
-    els.releaseCover.textContent = artist.emoji;
+    els.releaseCover.textContent = initial(artist.name);
     els.releaseTitle.textContent = artist.latestRelease.title;
     els.releaseSub.textContent = `${artist.latestRelease.date} · ${artist.latestRelease.kind}`;
     els.videoTitle.textContent = artist.latestVideo.title;
@@ -356,9 +371,9 @@
   // ---------- release frequency ----------
   function renderReleaseFrequency(artist) {
     const f = artist.releaseFrequency;
-    els.freqAvg.textContent = `${f.avgIntervalDays}일`;
-    els.freqLastYear.textContent = `${f.releasesLastYear}회`;
-    els.freqShortest.textContent = `${f.shortestIntervalDays}일`;
+    animateNumber(els.freqAvg, f.avgIntervalDays, 800, (v) => `${Math.round(v)}일`);
+    animateNumber(els.freqLastYear, f.releasesLastYear, 800, (v) => `${Math.round(v)}회`);
+    animateNumber(els.freqShortest, f.shortestIntervalDays, 800, (v) => `${Math.round(v)}일`);
     drawFormatChart(f.byFormat);
     renderTimelineDetail(artist.timeline);
   }
@@ -481,7 +496,7 @@
   // ---------- hero / badges ----------
   function renderHero(artist) {
     els.artistTitle.textContent = artist.name;
-    els.heroWatermark.textContent = artist.emoji;
+    els.heroWatermark.textContent = initial(artist.name);
     els.typeBadge.textContent = artist.type === "group" ? "GROUP" : "SOLO";
     els.typeBadge.className = `badge ${artist.type}`;
     els.memberCount.textContent = `멤버: ${artist.members}명`;
@@ -547,16 +562,41 @@
     renderHero(currentArtist);
     renderTimeline(currentArtist);
     renderProfile(currentArtist);
-    renderScore(currentArtist);
-    drawRadar(currentArtist);
-    renderSignalBars(currentArtist);
-    renderReleaseFrequency(currentArtist);
-    renderSalesPrediction(currentArtist);
+
+    reveal("score", () => {
+      renderScore(currentArtist);
+      drawRadar(currentArtist);
+      renderSignalBars(currentArtist);
+    });
+    reveal("freq", () => renderReleaseFrequency(currentArtist));
+    reveal("pred", () => renderSalesPrediction(currentArtist));
+
     activeNewsTab = "global";
     setNewsTab("global");
     els.rightRail.querySelector("span").textContent = `${currentArtist.name} · ${currentArtist.genre}`;
     resetLiveState(currentArtist);
     if (persist) localStorage.setItem(STORAGE.artist, currentArtist.id);
+  }
+
+  // ---------- scroll reveal wiring ----------
+  // Polls geometry on scroll/resize instead of relying solely on
+  // IntersectionObserver's intersecting-transition, so a fast/instant jump
+  // scroll (e.g. pressing End) can't skip a section clean over the viewport
+  // and leave it stuck invisible.
+  function checkReveals() {
+    document.querySelectorAll(".reveal:not(.in)").forEach((el) => {
+      if (el.getBoundingClientRect().top < window.innerHeight * 0.92) {
+        el.classList.add("in");
+        const key = el.dataset.reveal;
+        if (key) runReveal(key);
+      }
+    });
+  }
+
+  function initScrollReveal() {
+    checkReveals();
+    window.addEventListener("scroll", checkReveals, { passive: true });
+    window.addEventListener("resize", checkReveals);
   }
 
   // ---------- data reset ----------
@@ -599,6 +639,7 @@
     els.tabKorean.addEventListener("click", () => setNewsTab("korean"));
 
     startClockLoop();
+    initScrollReveal();
   }
 
   document.addEventListener("DOMContentLoaded", init);

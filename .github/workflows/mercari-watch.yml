@@ -1,0 +1,45 @@
+name: Mercari keyword watch
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: mercari-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install cryptography==43.0.3
+
+      - name: Restore seen items
+        uses: actions/cache/restore@v4
+        with:
+          path: mercari-watch/seen.json
+          key: mercari-seen-${{ github.run_id }}
+          restore-keys: mercari-seen-
+
+      - name: Check Mercari
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          WATCH_CONFIG: ${{ secrets.WATCH_CONFIG }}
+        run: python mercari-watch/watch.py
+
+      - name: Save seen items
+        if: always() && hashFiles('mercari-watch/seen.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: mercari-watch/seen.json
+          key: mercari-seen-${{ github.run_id }}-${{ github.run_attempt }}

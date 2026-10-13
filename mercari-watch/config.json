@@ -1,0 +1,16 @@
+{
+  "watches": [
+    {
+      "keyword": "jetboil sol ti",
+      "exclude": "",
+      "price_min": 0,
+      "price_max": 0
+    },
+    {
+      "keyword": "ジェットボイル ソル チタン",
+      "exclude": "",
+      "price_min": 0,
+      "price_max": 0
+    }
+  ]
+}

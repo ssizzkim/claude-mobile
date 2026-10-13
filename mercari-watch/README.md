@@ -23,6 +23,7 @@ GitHub Actions가 10분마다 실행되며, 서버나 비용이 필요 없습니
    }
    ```
    - `exclude`: 제외할 단어 (띄어쓰기로 여러 개)
+   - `title_any`: (선택) 상품명에 이 중 하나라도 들어간 것만 알림. 영문은 단어 단위로 비교합니다(`ti`는 "Sol Ti"에는 걸리고 "edition"에는 안 걸림)
    - `price_min` / `price_max`: 엔 단위, `0`이면 제한 없음
    - 이 저장소는 공개라서 `config.json` 내용도 공개됩니다. 키워드를 숨기고 싶으면 같은 JSON을 `WATCH_CONFIG` Secret에 넣으세요. Secret이 있으면 파일보다 우선합니다.
 4. Actions 탭 → **Mercari keyword watch** → **Run workflow**로 한 번 실행해 동작을 확인합니다.

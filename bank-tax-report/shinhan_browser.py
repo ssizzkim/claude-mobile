@@ -66,6 +66,7 @@ def open_chrome(pw, profile: Path):
             str(profile),
             executable_path=chrome_path(),
             headless=False,
+            chromium_sandbox=True,  # 기본값이면 --no-sandbox 가 붙어 경고 줄이 뜬다
             accept_downloads=True,
             no_viewport=True,
             args=args,

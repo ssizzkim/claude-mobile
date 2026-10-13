@@ -1,6 +1,6 @@
 """신한은행 기업뱅킹 화면 반자동 조회 (CODEF 없이) — "한 번 보여주면 기억".
 
-1. 이 앱 전용 크롬 창으로 신한 기업뱅킹을 연다(실제 크롬, 원격 디버깅 포트로 연결).
+1. 이 앱 전용 크롬 창(설치된 크롬, 앱 전용 프로필)으로 신한 기업뱅킹을 연다.
 2. 로그인은 사람이 직접 한다(공동인증서 비밀번호는 앱이 다루지 않는다).
 3. 받을 자료(거래내역조회, 이체결과조회)마다:
    - 기억한 클릭 순서가 있으면 그대로 다시 누르고, '조회' 직전에 기간을 넣고, 엑셀을 받는다.
@@ -12,8 +12,6 @@
 import json
 import os
 import shutil
-import socket
-import subprocess
 import sys
 import time
 from datetime import date, datetime, timedelta
@@ -21,7 +19,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 SHINHAN_URL = os.environ.get("SHINHAN_URL", "https://bizbank.shinhan.com/")
-DEBUG_PORT = int(os.environ.get("BTR_CHROME_PORT", "9333"))
 LOGIN_TIMEOUT = 10 * 60
 TEACH_TIMEOUT = 15 * 60
 EXCEL_SUFFIXES = (".xls", ".xlsx", ".csv", ".htm", ".html")
@@ -59,32 +56,25 @@ def chrome_path() -> str:
     raise StepFailed("Google Chrome 을 찾지 못했습니다. 설치 명령을 다시 실행하면 크롬도 설치됩니다.")
 
 
-def port_open(port: int) -> bool:
-    with socket.socket() as sock:
-        sock.settimeout(0.5)
-        return sock.connect_ex(("127.0.0.1", port)) == 0
-
-
-def launch_chrome(profile: Path) -> None:
-    if port_open(DEBUG_PORT):
-        return  # 이전에 연 앱 전용 크롬이 아직 떠 있음
+def open_chrome(pw, profile: Path):
+    """설치된 크롬을 이 앱 전용 프로필로 띄운다(일반 크롬과 섞이지 않음)."""
     profile.mkdir(parents=True, exist_ok=True)
-    args = [
-        chrome_path(),
-        f"--remote-debugging-port={DEBUG_PORT}",
-        f"--user-data-dir={profile}",
-        "--no-first-run",
-        "--no-default-browser-check",
-        SHINHAN_URL,
-    ]
-    if os.environ.get("BTR_CHROME_ARGS"):
-        args[1:1] = os.environ["BTR_CHROME_ARGS"].split()
-    subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    for _ in range(60):
-        if port_open(DEBUG_PORT):
-            return
-        time.sleep(0.5)
-    raise StepFailed("크롬을 띄우지 못했습니다. 크롬을 모두 닫고 다시 시도하세요.")
+    args = ["--no-first-run", "--no-default-browser-check", "--disable-blink-features=AutomationControlled"]
+    args += os.environ.get("BTR_CHROME_ARGS", "").split()
+    try:
+        return pw.chromium.launch_persistent_context(
+            str(profile),
+            executable_path=chrome_path(),
+            headless=False,
+            accept_downloads=True,
+            no_viewport=True,
+            args=args,
+            ignore_default_args=["--enable-automation"],
+        )
+    except Exception as error:
+        if "ProcessSingleton" in str(error) or "profile" in str(error).lower():
+            raise StepFailed("앱이 전에 연 크롬 창이 아직 열려 있습니다. 그 크롬 창을 닫고 다시 시도하세요.") from None
+        raise StepFailed(f"크롬을 띄우지 못했습니다: {error}") from None
 
 
 # ------------------------------------------------------------------ 화면 찾기
@@ -379,27 +369,28 @@ def download_statements(start: date, end: date, home: Path, log=print, done=None
         return False
 
     log("  · 크롬으로 신한 기업뱅킹을 엽니다.")
-    launch_chrome(home / "chrome-profile")
     with sync_playwright() as pw:
-        browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{DEBUG_PORT}")
-        context = browser.contexts[0]
-        cdp = browser.new_browser_cdp_session()
-        names_by_guid: dict[str, str] = {}
+        context = open_chrome(pw, home / "chrome")
+        target = {"folder": run_dir}  # 지금 받는 자료의 폴더
+        pending: list = []
 
-        def download_begin(event):
-            names_by_guid[event.get("guid", "")] = event.get("suggestedFilename", "")
-            log(f"  · 다운로드 시작: {event.get('suggestedFilename', '')}")
+        def on_download(download):  # 실제 저장은 idle() 에서(이벤트 처리 중에 기다리면 멈출 수 있음)
+            log(f"  · 다운로드 시작: {download.suggested_filename}")
+            pending.append(download)
 
-        def download_progress(event):
-            state = event.get("state")
-            name = names_by_guid.get(event.get("guid", ""), "")
-            if state == "completed":
-                log(f"  · 다운로드 완료: {name}")
-            elif state == "canceled":
-                log(f"  · 다운로드가 취소/차단됐습니다: {name} (크롬 아래쪽 다운로드 표시줄을 확인하세요)")
+        def save_pending():
+            while pending:
+                download = pending.pop(0)
+                name = download.suggested_filename or "download.xls"
+                dest = target["folder"] / name
+                if dest.exists():
+                    dest = dest.with_name(f"{dest.stem}-{int(time.time())}{dest.suffix}")
+                try:
+                    download.save_as(str(dest))
+                    log(f"  · 다운로드 완료: {dest.name}")
+                except Exception as error:
+                    log(f"  · 다운로드 실패: {name} ({download.failure() or error})")
 
-        cdp.on("Browser.downloadWillBegin", download_begin)
-        cdp.on("Browser.downloadProgress", download_progress)
         recorded: list[dict] = []
         recording = {"on": False}
 
@@ -419,10 +410,13 @@ def download_statements(start: date, end: date, home: Path, log=print, done=None
 
         def idle():  # 브라우저 이벤트(다운로드·기록)를 처리하며 잠깐 쉰다
             pages = [p for p in context.pages if not p.is_closed()]
+            if not pages:
+                raise StepFailed("크롬 창이 닫혔습니다.")
             try:
                 pages[-1].wait_for_timeout(500)
             except Exception:
                 time.sleep(0.5)
+            save_pending()
 
         def pause(seconds):
             end_at = time.time() + seconds
@@ -431,12 +425,16 @@ def download_statements(start: date, end: date, home: Path, log=print, done=None
 
         def watch(page):
             page.on("dialog", lambda dialog: dialog.accept())
+            page.on("download", on_download)
 
         for page in context.pages:
             watch(page)
         context.on("page", watch)
-        if not any(urlparse(SHINHAN_URL).netloc in p.url for p in context.pages):
-            context.new_page().goto(SHINHAN_URL)
+        page = context.pages[0] if context.pages else context.new_page()
+        try:
+            page.goto(SHINHAN_URL, timeout=60000)
+        except Exception as error:
+            log(f"  · 신한 기업뱅킹 페이지를 여는 중 문제가 있었습니다({error}). 크롬 창을 확인하세요.")
 
         log("  ▶ 크롬 창에서 공동인증서로 로그인하세요.")
         log("    (로그인되면 자동으로 이어집니다. 안 넘어가면 앱의 [다음 ▶]을 누르세요)")
@@ -458,8 +456,7 @@ def download_statements(start: date, end: date, home: Path, log=print, done=None
         for key, menu in REPORTS:
             folder = run_dir / names.get(key, key)
             folder.mkdir(parents=True, exist_ok=True)
-            cdp.send("Browser.setDownloadBehavior",
-                     {"behavior": "allow", "downloadPath": str(folder), "eventsEnabled": True})  # fmt: skip
+            target["folder"] = folder
             files: list[Path] = []
             began = time.time() - 2
             steps = recipes.get(key)
@@ -506,9 +503,8 @@ def download_statements(start: date, end: date, home: Path, log=print, done=None
             if files:
                 log(f"  · {menu} 파일: {', '.join(p.name for p in files)}")
             result[key] = files
-        # 앱이 끝난 뒤 그 크롬에서 받는 파일은 원래 다운로드 폴더로
         try:
-            cdp.send("Browser.setDownloadBehavior", {"behavior": "default"})
+            context.close()  # 앱이 연 크롬 창을 닫는다(로그인 정보는 다음을 위해 프로필에 남음)
         except Exception:
             pass
     if save_dir:

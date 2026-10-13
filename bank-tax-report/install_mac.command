@@ -38,14 +38,27 @@ if [ -z "$PY" ]; then
 fi
 echo "Python: $PY ($("$PY" --version))"
 
-# 2) 가상환경 + 패키지
+# 2) 신한은행 화면 반자동에 쓸 Google Chrome (없으면 내려받아 설치)
+if [ ! -d "/Applications/Google Chrome.app" ] && [ ! -d "$HOME/Applications/Google Chrome.app" ]; then
+  echo "Google Chrome 을 내려받아 설치합니다..."
+  DMG="$(mktemp -d)/chrome.dmg"
+  curl -fL --progress-bar https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg -o "$DMG"
+  MNT="$(mktemp -d)"
+  hdiutil attach "$DMG" -nobrowse -quiet -mountpoint "$MNT"
+  CHROME_DEST="/Applications"; [ -w "$CHROME_DEST" ] || { CHROME_DEST="$HOME/Applications"; mkdir -p "$CHROME_DEST"; }
+  cp -R "$MNT/Google Chrome.app" "$CHROME_DEST/"
+  hdiutil detach "$MNT" -quiet || true
+  echo "Chrome: $CHROME_DEST/Google Chrome.app"
+fi
+
+# 3) 가상환경 + 패키지
 mkdir -p "$SUPPORT" "$CODE"
 "$VENV/bin/python" -c 'import tkinter' >/dev/null 2>&1 || { rm -rf "$VENV"; "$PY" -m venv "$VENV"; }
 "$VENV/bin/python" -m pip install --upgrade --quiet pip
 "$VENV/bin/python" -m pip install --quiet -r "$SRC/requirements.txt"
-cp "$SRC/report.py" "$SRC/app.py" "$CODE/"
+cp "$SRC/report.py" "$SRC/app.py" "$SRC/shinhan_browser.py" "$SRC/bank_excel.py" "$CODE/"
 
-# 3) .app 번들
+# 4) .app 번들
 DEST="/Applications"
 [ -w "$DEST" ] || { DEST="$HOME/Applications"; mkdir -p "$DEST"; }
 BUNDLE="$DEST/$APP_NAME.app"

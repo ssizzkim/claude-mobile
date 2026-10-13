@@ -145,6 +145,18 @@ class App:
         ttk.Checkbutton(targets, text="홈택스 세금계산서", variable=self.hometax_on).pack(side="left", padx=12)
         row += 1
 
+        # 은행 조회 방식
+        ttk.Label(frame, text="은행 조회 방식").grid(row=row, column=0, sticky="w")
+        modes = ttk.Frame(frame)
+        modes.grid(row=row, column=1, columnspan=2, sticky="w", padx=8)
+        self.bank_mode = tk.StringVar(value=self.settings.get("BANK_MODE", "browser"))
+        for value, text in (("browser", "화면 반자동(크롬)"), ("files", "받아 둔 엑셀 파일"), ("codef", "CODEF")):
+            ttk.Radiobutton(modes, text=text, value=value, variable=self.bank_mode).pack(side="left", padx=(0, 10))
+        row += 1
+        ttk.Label(frame, text="화면 반자동: 크롬 창이 뜨면 신한 기업뱅킹에 직접 로그인만 하세요. 나머지는 앱이 누릅니다.",
+                  foreground="#666").grid(row=row, column=1, columnspan=2, sticky="w", padx=8, pady=(0, 6))  # fmt: skip
+        row += 1
+
         # 저장 폴더
         ttk.Label(frame, text="저장 폴더").grid(row=row, column=0, sticky="w")
         self.output_var = tk.StringVar(value=self.settings.get("OUTPUT_DIR") or str(DEFAULT_OUTPUT))
@@ -161,6 +173,9 @@ class App:
         ttk.Button(buttons, text="데모 엑셀", command=lambda: self.start(demo=True)).pack(side="left")
         self.open_button = ttk.Button(buttons, text="엑셀 열기", command=self.open_output, state="disabled")
         self.open_button.pack(side="right")
+        self.bank_done = threading.Event()
+        self.done_button = ttk.Button(buttons, text="은행 엑셀 받기 완료", command=self.bank_done.set, state="disabled")
+        self.done_button.pack(side="right", padx=8)
         row += 1
 
         # 진행 로그
@@ -169,9 +184,8 @@ class App:
         self.log.grid(row=row, column=0, columnspan=3, sticky="nsew")
 
         self.refresh_certs()
-        if not self.settings.get("CODEF_CLIENT_ID"):
-            self.write("처음이면 [CODEF 설정…]에서 CODEF 키를 넣어 주세요(신한은행 조회용).")
-            self.write("홈택스만 조회할 거면 키 없이 [신한은행] 체크를 끄고 실행하면 됩니다.")
+        self.write("공동인증서와 비밀번호(홈택스용)를 넣고 [조회하고 엑셀 저장]을 누르세요.")
+        self.write("신한은행은 크롬 창이 열리면 직접 로그인만 하면 됩니다(처음엔 보안 프로그램 설치 안내가 나올 수 있음).")
         root.after(100, self.drain)
 
     # -- 입력 도우미
@@ -263,16 +277,27 @@ class App:
             messagebox.showerror(APP_NAME, "기간을 확인하세요(시작일 ≤ 종료일 ≤ 오늘).")
             return
         cert_dir, password = self.selected_cert(), self.password.get()
+        mode, bank_files = self.bank_mode.get(), []
+        bank_on = self.bank_on.get()
         if not demo:
-            if not (self.bank_on.get() or self.hometax_on.get()):
+            if not (bank_on or self.hometax_on.get()):
                 messagebox.showerror(APP_NAME, "조회 대상을 하나 이상 고르세요.")
                 return
-            if not cert_dir or not password:
+            needs_cert = self.hometax_on.get() or (bank_on and mode == "codef")
+            if needs_cert and (not cert_dir or not password):
                 messagebox.showerror(APP_NAME, "공동인증서와 비밀번호를 입력하세요.")
                 return
-            if self.bank_on.get() and not self.settings.get("CODEF_CLIENT_ID"):
-                messagebox.showerror(APP_NAME, "신한은행 조회에는 CODEF 설정이 필요합니다. [CODEF 설정…]을 눌러 주세요.")
+            if bank_on and mode == "codef" and not self.settings.get("CODEF_CLIENT_ID"):
+                messagebox.showerror(APP_NAME, "CODEF 방식에는 CODEF 설정이 필요합니다. [CODEF 설정…]을 눌러 주세요.")
                 return
+            if bank_on and mode == "files":
+                bank_files = filedialog.askopenfilenames(
+                    title="신한은행에서 받은 거래내역 파일(여러 개 선택 가능)",
+                    initialdir=str(Path.home() / "Downloads"),
+                    filetypes=[("거래내역", "*.xls *.xlsx *.csv *.htm *.html"), ("모든 파일", "*")],
+                )
+                if not bank_files:
+                    return
 
         # report.py 가 읽는 환경 변수로 설정 전달
         for key in SETTING_KEYS:
@@ -281,14 +306,19 @@ class App:
         if cert_dir:
             self.settings["CERT_DIR"] = str(cert_dir)
         self.settings["OUTPUT_DIR"] = os.environ["OUTPUT_DIR"]
+        self.settings["BANK_MODE"] = mode
         save_settings(self.settings)
 
         self.run_button.configure(state="disabled")
         self.open_button.configure(state="disabled")
         self.clear()
         self.demo = demo
-        options = dict(cert_dir=cert_dir, password=password, bank_on=self.bank_on.get(),
-                       hometax_on=self.hometax_on.get(), demo=demo, log=self.messages.put)  # fmt: skip
+        self.bank_done.clear()
+        if bank_on and mode == "browser" and not demo:
+            self.done_button.configure(state="normal")
+        options = dict(cert_dir=cert_dir, password=password, bank_on=bank_on,
+                       hometax_on=self.hometax_on.get(), demo=demo, log=self.messages.put,
+                       bank_mode=mode, bank_files=list(bank_files), bank_done=self.bank_done)  # fmt: skip
         threading.Thread(target=self.work, args=(start, end, options), daemon=True).start()
 
     def work(self, start, end, options):
@@ -309,6 +339,7 @@ class App:
 
     def finish(self, kind, value, warnings):
         self.run_button.configure(state="normal")
+        self.done_button.configure(state="disabled")
         if kind == "error":
             self.write(f"오류: {value}")
             messagebox.showerror(APP_NAME, value)

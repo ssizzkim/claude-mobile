@@ -2,8 +2,12 @@
 
 같은 법인 공동인증서(NPKI: signCert.der / signPri.key) 하나로 두 곳을 조회한다.
 
-  은행: CODEF API(https://codef.io)가 공동인증서로 신한은행 기업뱅킹에 로그인해
-        법인 수시입출 계좌의 거래내역을 돌려준다. 이체(출금) 내역은 그 거래내역에서 뽑는다.
+  은행(기본, browser): 앱 전용 크롬 창으로 신한 기업뱅킹을 열고, 사람이 로그인하면
+        거래내역조회 → 엑셀저장을 눌러 받은 파일을 읽는다(shinhan_browser.py, bank_excel.py).
+  은행(codef): CODEF API(https://codef.io)가 공동인증서로 신한은행 기업뱅킹에 로그인해
+        법인 수시입출 계좌의 거래내역을 돌려준다.
+  은행(files): 직접 내려받아 둔 거래내역 엑셀 파일을 읽는다.
+  이체(출금) 내역은 거래내역에서 출금 건을 뽑는다.
   홈택스: 오픈소스 `hometax` CLI(https://github.com/hjsh200219/hometax)가 공동인증서로
         홈택스에 로그인해 전자세금계산서 매출(발급)·매입(수취) 목록을 돌려준다.
 
@@ -20,6 +24,8 @@
   python report.py --days 14
   python report.py --from 2026-10-01 --to 2026-10-07
   python report.py --skip-bank     # 홈택스만 / --skip-hometax 은행만
+  python report.py --bank codef    # 은행을 CODEF 로
+  python report.py --bank files --bank-file 거래내역.xls
   python report.py --demo          # 가짜 데이터로 엑셀 모양만 확인(네트워크·인증서 불필요)
 """
 
@@ -472,10 +478,33 @@ def default_output(start: date, end: date) -> Path:
     return out_dir / f"거래_세금계산서_{start:%Y%m%d}-{end:%Y%m%d}.xlsx"
 
 
+def fetch_bank_browser(start: date, end: date, log, done=None) -> tuple[list[dict], list[str]]:
+    """CODEF 없이: 크롬 화면 반자동으로 엑셀을 받아 읽는다."""
+    import bank_excel
+    import shinhan_browser
+
+    try:
+        files = shinhan_browser.download_statements(start, end, data_dir(), log=log, done=done)
+    except shinhan_browser.StepFailed as error:
+        raise AppError(str(error)) from None
+    return bank_excel.parse_files(files, start, end)
+
+
+def fetch_bank_files(start: date, end: date, files) -> tuple[list[dict], list[str]]:
+    import bank_excel
+
+    if not files:
+        raise AppError("은행 거래내역 파일을 고르세요.")
+    return bank_excel.parse_files(files, start, end)
+
+
 def run(start: date, end: date, *, cert_dir: Path | None = None, password: str = "",
         bank_on: bool = True, hometax_on: bool = True, demo: bool = False,
-        out: Path | None = None, log=print) -> tuple[Path, list[str]]:
-    """조회 → 엑셀 저장. (저장 경로, 경고 목록)을 돌려준다. CLI와 맥 앱이 함께 쓴다."""
+        out: Path | None = None, log=print, bank_mode: str = "browser",
+        bank_files=None, bank_done=None) -> tuple[Path, list[str]]:
+    """조회 → 엑셀 저장. (저장 경로, 경고 목록)을 돌려준다. CLI와 맥 앱이 함께 쓴다.
+
+    bank_mode: browser(크롬 화면 반자동, 기본) / codef / files(내려받아 둔 엑셀 파일)"""
     out = out or default_output(start, end)
     log(f"조회 기간: {start} ~ {end}")
     warnings: list[str] = []
@@ -484,14 +513,20 @@ def run(start: date, end: date, *, cert_dir: Path | None = None, password: str =
         bank, invoices = demo_data(start, end)
         warnings.append("데모 데이터입니다(실제 조회 아님).")
     else:
-        if not cert_dir:
+        needs_cert = hometax_on or (bank_on and bank_mode == "codef")
+        if needs_cert and not cert_dir:
             raise AppError("공동인증서 폴더를 지정하세요.")
-        if not password:
+        if needs_cert and not password:
             raise AppError("공동인증서 비밀번호를 입력하세요.")
         if bank_on:
             log("[1/2] 신한은행 기업 계좌 거래내역 조회 중...")
             try:
-                bank, bank_warnings = fetch_bank(start, end, cert_dir, password)
+                if bank_mode == "codef":
+                    bank, bank_warnings = fetch_bank(start, end, cert_dir, password)
+                elif bank_mode == "files":
+                    bank, bank_warnings = fetch_bank_files(start, end, bank_files)
+                else:
+                    bank, bank_warnings = fetch_bank_browser(start, end, log, bank_done)
                 warnings += bank_warnings
                 log(f"  거래 {len(bank)}건")
             except Exception as error:  # 네트워크 오류 등도 한쪽 실패로 처리
@@ -520,6 +555,9 @@ def main(argv=None) -> int:
     parser.add_argument("--to", dest="end", help="종료일 YYYY-MM-DD")
     parser.add_argument("--skip-bank", action="store_true", help="은행 조회 생략")
     parser.add_argument("--skip-hometax", action="store_true", help="홈택스 조회 생략")
+    parser.add_argument("--bank", choices=["browser", "codef", "files"], default=env("BANK_MODE", "browser"),
+                        help="은행 조회 방식: browser(크롬 반자동, 기본) / codef / files")
+    parser.add_argument("--bank-file", action="append", default=[], help="--bank files 일 때 거래내역 파일")
     parser.add_argument("--demo", action="store_true", help="가짜 데이터로 엑셀만 만들어 보기")
     parser.add_argument("--out", help="저장할 엑셀 파일 경로")
     args = parser.parse_args(argv)
@@ -527,7 +565,8 @@ def main(argv=None) -> int:
     try:
         start, end = parse_period(args)
         cert_dir = password = None
-        if not args.demo:
+        needs_cert = not args.skip_hometax or (not args.skip_bank and args.bank == "codef")
+        if not args.demo and needs_cert:
             if not env("CERT_DIR"):
                 raise AppError("CERT_DIR(공동인증서 폴더)를 설정하세요.")
             cert_dir = Path(env("CERT_DIR")).expanduser()
@@ -536,6 +575,7 @@ def main(argv=None) -> int:
             start, end, cert_dir=cert_dir, password=password or "",
             bank_on=not args.skip_bank, hometax_on=not args.skip_hometax, demo=args.demo,
             out=Path(args.out) if args.out else None,
+            bank_mode=args.bank, bank_files=args.bank_file,
         )  # fmt: skip
         return 1 if warnings and not args.demo else 0
     except AppError as error:

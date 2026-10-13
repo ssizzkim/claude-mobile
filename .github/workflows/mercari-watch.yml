@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+    inputs:
+      test_email:
+        description: "테스트 메일 보내기 (감시 기록은 바뀌지 않음)"
+        type: boolean
+        default: false
 
 concurrency:
   group: mercari-watch
@@ -35,6 +40,7 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
           WATCH_CONFIG: ${{ secrets.WATCH_CONFIG }}
+          TEST_EMAIL: ${{ inputs.test_email && '1' || '' }}
         run: python mercari-watch/watch.py
 
       - name: Save seen items

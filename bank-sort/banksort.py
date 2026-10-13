@@ -822,21 +822,26 @@ def report_sheet(wb, g, new_q, new_inv, summary, names):
 # ------------------------------------------------------------------ 현장별 합계
 
 SITE_SHEET = "현장별 합계"
-SITE_SRC = "통합내역"
 SITE_HDR = "현장"
 SITE_ROWS = 100          # 현장 이름을 몇 개까지 모을지
 SITE_FILL = PatternFill("solid", fgColor="FFF2CC")
+# (시트, 표시 이름, 더할 금액 열, 뺄 금액 열(카드 취소·환불), 날짜 열)
+SITE_SOURCES = [
+    ("통합내역", "이체(거래처·일용직)", "출금액", None, "거래일자"),
+    ("체크카드", "체크카드", "사용금액", "입금(취소/환불)", "거래일자"),
+    ("세금·공과금", "세금·공과금", "출금액", None, "거래일자"),
+    ("급여(김한승)", "급여", "출금액", None, "거래일자"),
+]
 
 
-def ensure_site_column(wb):
-    """통합내역 오른쪽 끝에 「현장」 열을 둔다. 손으로 넣은 값은 merge_into_existing 이 옮겨 준다."""
-    ws = wb[SITE_SRC]
+def ensure_site_column(ws):
+    """시트 오른쪽 끝(손으로 더한 열 다음)에 「현장」 열을 둔다. 써 둔 값은 merge_into_existing 이 옮겨 준다."""
     hdr = [c.value for c in ws[1]]
     if SITE_HDR in hdr:
         return hdr.index(SITE_HDR) + 1
-    col = len([h for h in hdr if h is not None]) + 1
-    while ws.cell(1, col).value not in (None, ""):
-        col += 1
+    col = len(hdr) + 1
+    while col > 1 and ws.cell(1, col - 1).value in (None, ""):
+        col -= 1
     c = ws.cell(1, col, SITE_HDR)
     c.font = Font(bold=True, color="7F6000"); c.fill = PatternFill("solid", fgColor="FFD966")
     c.alignment = Alignment(horizontal="center", vertical="center")
@@ -847,57 +852,82 @@ def ensure_site_column(wb):
 def build_site_sheet(wb):
     from openpyxl.worksheet.formula import ArrayFormula
     from openpyxl.worksheet.datavalidation import DataValidation
-    col = ensure_site_column(wb)
-    src = wb[SITE_SRC]
-    L = get_column_letter(col)
-    hdr = [c.value for c in src[1]]
-    G = get_column_letter(hdr.index("출금액") + 1)
-    Nn = get_column_letter(hdr.index("이체금액") + 1)
-    B = get_column_letter(hdr.index("거래일자") + 1)
-    last = max(src.max_row, 2) + 500           # 앞으로 늘어날 행까지
-    rng = f"'{SITE_SRC}'!${L}$2:${L}${last}"
+    first, end = 4, 4 + SITE_ROWS - 1
+    srcs = []
+    for name, label, plus, minus, date in SITE_SOURCES:
+        if name not in wb.sheetnames:
+            continue
+        ws = wb[name]
+        col = ensure_site_column(ws)
+        hdr = [c.value for c in ws[1]]
+        if plus not in hdr:
+            continue
+        start = 3 if name.startswith("가수금") else 2
+        last = max(ws.max_row, 2) + 500        # 앞으로 늘어날 행까지
+        q = f"'{name}'!"
+        letter = lambda h: get_column_letter(hdr.index(h) + 1)
+        rng = f"{q}${get_column_letter(col)}${start}:${get_column_letter(col)}${last}"
+        part = lambda h: f"{q}${letter(h)}${start}:${letter(h)}${last}"
+        srcs.append(dict(ws=ws, col=col, label=label, rng=rng, plus=part(plus),
+                         minus=part(minus) if minus and minus in hdr else None,
+                         date=part(date) if date in hdr else None, start=start, last=last))
+    if not srcs:
+        return
     if SITE_SHEET in wb.sheetnames:
         idx = wb.sheetnames.index(SITE_SHEET); del wb[SITE_SHEET]
     else:
-        idx = wb.sheetnames.index(SITE_SRC) + 1
+        idx = wb.sheetnames.index(srcs[0]["ws"].title) + 1
     ws = wb.create_sheet(SITE_SHEET, idx)
-    ws["A1"] = f"현장별 출금 합계 — 「{SITE_SRC}」 시트 {L}열(현장)에 이름을 쓰면 여기에 모입니다"
+    ws["A1"] = "현장별 출금 합계 — " + ", ".join(f"「{s['ws'].title}」" for s in srcs) + " 시트의 「현장」 열에 이름을 쓰면 여기에 모입니다"
     ws["A1"].font = Font(bold=True, size=13)
-    heads = ["현장", "건수", "출금액 합계", "이체금액 합계(수수료 제외)", "첫 거래일", "마지막 거래일"]
+    heads = ["현장", "건수"] + [s["label"] for s in srcs] + ["총합", "마지막 거래일"]
     for i, h in enumerate(heads, 1):
-        c = ws.cell(3, i, h); c.font = HDR_F; c.fill = HDR_FILL; c.alignment = Alignment(horizontal="center")
+        c = ws.cell(3, i, h); c.font = HDR_F; c.fill = HDR_FILL; c.alignment = Alignment(horizontal="center", wrap_text=True)
+    ncol = len(srcs)
+    tot_col = 3 + ncol; date_col = tot_col + 1
     ws["A2"] = "전체"; ws["A2"].font = Font(bold=True)
-    first, end = 4, 4 + SITE_ROWS - 1
-    ws["B2"] = f"=SUM(B{first}:B{end})"; ws["C2"] = f"=SUM(C{first}:C{end})"; ws["D2"] = f"=SUM(D{first}:D{end})"
-    for c in ("B2", "C2", "D2"):
-        ws[c].font = Font(bold=True); ws[c].number_format = "#,##0"
+    for c in range(2, tot_col + 1):
+        L = get_column_letter(c)
+        ws.cell(2, c, f"=SUM({L}{first}:{L}{end})").font = Font(bold=True)
+        ws.cell(2, c).number_format = "#,##0"
     for r in range(first, end + 1):
-        # 통합내역 현장 열에서 아직 위에 없는 이름을 차례로 꺼낸다(배열 수식)
-        f = (f'=IFERROR(INDEX({rng},MATCH(0,COUNTIF($A${first - 1}:A{r - 1},{rng})+({rng}=""),0)),"")')
-        ws[f"A{r}"] = ArrayFormula(f"A{r}", f)
-        ws[f"B{r}"] = f'=IF(A{r}="","",COUNTIF({rng},A{r}))'
-        ws[f"C{r}"] = f"=IF(A{r}=\"\",\"\",SUMIFS('{SITE_SRC}'!${G}$2:${G}${last},{rng},A{r}))"
-        ws[f"D{r}"] = f"=IF(A{r}=\"\",\"\",SUMIFS('{SITE_SRC}'!${Nn}$2:${Nn}${last},{rng},A{r}))"
-        ws[f"E{r}"] = f"=IF(A{r}=\"\",\"\",_xlfn.MINIFS('{SITE_SRC}'!${B}$2:${B}${last},{rng},A{r}))"
-        ws[f"F{r}"] = f"=IF(A{r}=\"\",\"\",_xlfn.MAXIFS('{SITE_SRC}'!${B}$2:${B}${last},{rng},A{r}))"
-        for c in ("B", "C", "D"):
-            ws[f"{c}{r}"].number_format = "#,##0"
-        for c in ("E", "F"):
-            ws[f"{c}{r}"].number_format = "yyyy-mm-dd"
-    for i, w in enumerate([24, 8, 16, 22, 12, 12], 1):
+        # 각 시트 현장 열에서 아직 위에 없는 이름을 차례로 꺼낸다(배열 수식, 앞 시트부터)
+        f = '""'
+        for s in reversed(srcs):
+            rg = s["rng"]
+            f = f'IFERROR(INDEX({rg},MATCH(0,COUNTIF($A${first - 1}:A{r - 1},{rg})+({rg}=""),0)),{f})'
+        ws[f"A{r}"] = ArrayFormula(f"A{r}", "=" + f)
+        blank = f'A{r}=""'
+        ws.cell(r, 2, f'=IF({blank},"",' + "+".join(f"COUNTIF({s['rng']},A{r})" for s in srcs) + ")")
+        for i, s in enumerate(srcs):
+            expr = f"SUMIFS({s['plus']},{s['rng']},A{r})"
+            if s["minus"]:
+                expr += f"-SUMIFS({s['minus']},{s['rng']},A{r})"
+            ws.cell(r, 3 + i, f'=IF({blank},"",{expr})')
+        ws.cell(r, tot_col, f'=IF({blank},"",SUM({get_column_letter(3)}{r}:{get_column_letter(2 + ncol)}{r}))')
+        dates = ",".join(f"_xlfn.MAXIFS({s['date']},{s['rng']},A{r})" for s in srcs if s["date"])
+        ws.cell(r, date_col, f'=IF({blank},"",MAX({dates}))')
+        for c in range(2, tot_col + 1):
+            ws.cell(r, c).number_format = "#,##0"
+        ws.cell(r, tot_col).font = Font(bold=True)
+        ws.cell(r, date_col).number_format = "yyyy-mm-dd"
+    widths = [22, 7] + [15] * ncol + [16, 12]
+    for i, w in enumerate(widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
-    ws.freeze_panes = "A4"
-    # 현장 칸에 드롭다운(이미 쓴 현장 이름). 새 이름도 그냥 쓸 수 있게 오류는 띄우지 않는다
-    src.data_validations.dataValidation = [dv for dv in src.data_validations.dataValidation
-                                           if L not in str(dv.sqref)]
-    dv = DataValidation(type="list", formula1=f"='{SITE_SHEET}'!$A${first}:$A${end}", allow_blank=True,
-                        showErrorMessage=False)
-    dv.add(f"{L}2:{L}{last}")
-    src.add_data_validation(dv)
-    for r in range(2, src.max_row + 1):
-        if src.cell(r, 1).value is None:
-            break
-        src.cell(r, col).fill = SITE_FILL
+    ws.row_dimensions[3].height = 32
+    ws.freeze_panes = "B4"
+    # 현장 칸마다 드롭다운(이미 쓴 현장 이름). 새 이름도 쓸 수 있게 오류는 띄우지 않는다
+    for s in srcs:
+        src = s["ws"]; L = get_column_letter(s["col"])
+        src.data_validations.dataValidation = [dv for dv in src.data_validations.dataValidation
+                                               if not str(dv.sqref).startswith(L)]
+        dv = DataValidation(type="list", formula1=f"='{SITE_SHEET}'!$A${first}:$A${end}", allow_blank=True,
+                            showErrorMessage=False)
+        dv.add(f"{L}{s['start']}:{L}{s['last']}")
+        src.add_data_validation(dv)
+        end_row = last_data_row(src, s["start"])
+        for r in range(s["start"], end_row + 1):
+            src.cell(r, s["col"]).fill = SITE_FILL
 
 
 # ------------------------------------------------------------------ 실행

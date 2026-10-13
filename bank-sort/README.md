@@ -8,7 +8,7 @@
 - 엔진: `~/Library/Application Support/BankSort/` (venv, banksort.py, integrate.py)
 
 ## 파일
-- `banksort.py` 파일 판별·중복 제거·추가분 저장·계산서 통합 파일 갱신·손편집 보존·「이번 정리」·「현장별 합계」(통합내역 현장 열 → 수식 합계)
+- `banksort.py` 파일 판별·중복 제거·추가분 저장·계산서 통합 파일 갱신·손편집 보존·「이번 정리」·「현장별 합계」(통합내역·체크카드·세금·공과금·급여 현장 열 → 수식 합계)
 - `integrate.py` 분류·매칭 규칙 (원래 「은행내역 통합_스크립트.py」 2026-09-18, 파일 읽기/저장만 분리)
 - `BankSort.bas.in` → `build.py` → `BankSort.bas` (한글은 U("코드") 로 바꿔 ASCII 로)
 - `banksort.applescript` 엑셀 ↔ 파이썬 연결

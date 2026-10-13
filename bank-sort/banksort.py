@@ -568,36 +568,48 @@ def last_data_row(ws, start=2):
     return r - 1
 
 
-def copy_sheet(src, dst):
+def shift_cell_ref(ref, off):
+    from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
+    col, row = coordinate_from_string(ref)
+    return f"{get_column_letter(column_index_from_string(col) + off)}{row}"
+
+
+def copy_sheet(src, dst, off=0):
+    """src 를 dst 로 복사한다. off 만큼 오른쪽으로 밀어서(맨 앞 「현장」 열 자리)."""
+    from openpyxl.utils.cell import column_index_from_string
     for row in src.iter_rows():
         for c in row:
-            d = dst.cell(c.row, c.column, c.value)
+            d = dst.cell(c.row, c.column + off, c.value)
             if c.has_style:
                 copy_style(c, d)
     for k, cd in src.column_dimensions.items():
-        dst.column_dimensions[k].width = cd.width
-    dst.freeze_panes = src.freeze_panes
+        dst.column_dimensions[get_column_letter(column_index_from_string(k) + off)].width = cd.width
+    if src.freeze_panes:
+        dst.freeze_panes = shift_cell_ref(src.freeze_panes, off)
     if src.auto_filter.ref:
-        dst.auto_filter.ref = src.auto_filter.ref
+        a, b = src.auto_filter.ref.split(":")
+        dst.auto_filter.ref = f"{'A1' if off else a}:{shift_cell_ref(b, off)}"   # 현장 열까지 거르기 범위에 넣는다
 
 
-def moved(v, old_row, new_row, col):
-    """손으로 넣은 수식은 행이 옮겨진 만큼 참조도 옮긴다(=E8+E6 → 새 위치 기준)."""
-    if not (isinstance(v, str) and v.startswith("=")) or old_row == new_row:
+def moved(v, old_row, new_row, old_col, new_col):
+    """손으로 넣은 수식은 칸이 옮겨진 만큼 참조도 옮긴다(=E8+E6 → 새 위치 기준)."""
+    if not (isinstance(v, str) and v.startswith("=")) or (old_row, old_col) == (new_row, new_col):
         return v
     from openpyxl.formula.translate import Translator
-    letter = get_column_letter(col)
     try:
-        return Translator(v, origin=f"{letter}{old_row}").translate_formula(f"{letter}{new_row}")
+        return Translator(v, origin=f"{get_column_letter(old_col)}{old_row}").translate_formula(
+            f"{get_column_letter(new_col)}{new_row}")
     except Exception:
         return v
 
 
 def merge_into_existing(new_wb, out_path, generated, always_new):
     """기존 통합 파일을 열어 자동 생성 시트만 새 내용으로 바꾼다.
-    손으로 더한 열(자동 열 오른쪽)과 표 아래 메모, 직접 만든 시트, 지운 시트 상태는 그대로 둔다."""
+    현장 열(돈이 나간 시트의 맨 앞 A열), 손으로 더한 열(자동 열 오른쪽), 표 아래 메모,
+    직접 만든 시트, 지운 시트 상태는 그대로 둔다."""
     if not out_path.exists():
         return new_wb
+    site_sheets = {s[0] for s in SITE_SOURCES}
     old = openpyxl.load_workbook(str(out_path))
     for name in generated:
         if name not in new_wb.sheetnames:
@@ -605,51 +617,73 @@ def merge_into_existing(new_wb, out_path, generated, always_new):
         if name not in old.sheetnames and name not in always_new:
             continue  # 사용자가 지운 시트는 다시 만들지 않는다
         src = new_wb[name]
+        off = 1 if name in site_sheets else 0
         width = len([c for c in src[1] if c.value is not None])
         start = 3 if name.startswith("가수금") else 2
         kcols = list(range(2, min(width, 9) + 1))   # No 를 뺀 앞쪽 열(거래일자·시간·금액…)로 같은 행을 찾는다
-        extras, trailing, extra_hdr, widths = {}, [], [], {}
+        extras, trailing, hdrs, widths = {}, [], [], {}
         if name in old.sheetnames:
             ow = old[name]
-            oend = last_data_row(ow, start)
-            extra_cols = list(range(width + 1, ow.max_column + 1))
+            ooff = 1 if norm_header(ow.cell(1, 1).value) == SITE_HDR else 0
+            site_old = 1 if ooff else next((c for c in range(width + 1, ow.max_column + 1)
+                                            if norm_header(ow.cell(1, c).value) == SITE_HDR), None)
+
+            def target(c):
+                """옛 열 번호 → 새 열 번호."""
+                if c == site_old:
+                    return 1 if off else None
+                rel = c - (width + ooff)
+                if site_old and site_old > width + ooff and c > site_old:
+                    rel -= 1          # 예전처럼 끝에 있던 현장 열이 빠진 자리
+                return width + off + rel
+
+            extra_cols = ([site_old] if site_old else []) + [c for c in range(width + 1 + ooff, ow.max_column + 1) if c != site_old]
             for c in extra_cols:
+                t = target(c)
+                if t is None:
+                    continue
                 if ow.cell(1, c).value not in (None, ""):
-                    extra_hdr.append(ow.cell(1, c))
+                    hdrs.append((t, ow.cell(1, c)))
                 letter = get_column_letter(c)
-                if letter in ow.column_dimensions:
-                    widths[letter] = ow.column_dimensions[letter].width
+                if letter in ow.column_dimensions and ow.column_dimensions[letter].width:
+                    widths[get_column_letter(t)] = ow.column_dimensions[letter].width
+            oend = last_data_row(ow, start)
             for r in range(start, oend + 1):
-                vals = {c: ow.cell(r, c) for c in extra_cols if ow.cell(r, c).value is not None}
+                vals = {}
+                for c in extra_cols:
+                    t = target(c)
+                    if t is not None and ow.cell(r, c).value is not None:
+                        vals[t] = (c, ow.cell(r, c))
                 if vals:
-                    key = tuple(keyval(ow.cell(r, c).value) for c in kcols)
+                    key = tuple(keyval(ow.cell(r, c + ooff).value) for c in kcols)
                     extras.setdefault(key, []).append((r, vals))
             if last_data_row(src, start) >= src.max_row:   # 자동 내용이 표 아래에 없을 때만 손메모를 옮긴다
                 for r in range(oend + 1, ow.max_row + 1):
                     cells = [ow.cell(r, c) for c in range(1, ow.max_column + 1)]
                     if any(c.value is not None for c in cells):
-                        trailing.append((r - oend, cells))
+                        trailing.append((r - oend, cells, off - ooff))
             idx = old.sheetnames.index(name)
             del old[name]
             dst = old.create_sheet(name, idx)
         else:
             dst = old.create_sheet(name, 0)
-        copy_sheet(src, dst)
-        for h in extra_hdr:
-            copy_style(h, dst.cell(1, h.column, h.value))
+        copy_sheet(src, dst, off)
+        for t, h in hdrs:
+            copy_style(h, dst.cell(1, t, h.value))
         for letter, w in widths.items():
             dst.column_dimensions[letter].width = w
         nend = last_data_row(dst, start)
         for r in range(start, nend + 1):
-            lst = extras.get(tuple(keyval(dst.cell(r, c).value) for c in kcols))
+            lst = extras.get(tuple(keyval(dst.cell(r, c + off).value) for c in kcols))
             if lst:
                 orow, vals = lst.pop(0)
-                for c, cell in vals.items():
-                    copy_style(cell, dst.cell(r, c, moved(cell.value, orow, r, c)))
-        for off, cells in trailing:
+                for t, (oc, cell) in vals.items():
+                    copy_style(cell, dst.cell(r, t, moved(cell.value, orow, r, oc, t)))
+        for roff, cells, coff in trailing:
             for c in cells:
-                if c.value is not None:
-                    copy_style(c, dst.cell(nend + off, c.column, moved(c.value, c.row, nend + off, c.column)))
+                if c.value is not None and c.column + coff >= 1:
+                    nr, nc = nend + roff, c.column + coff
+                    copy_style(c, dst.cell(nr, nc, moved(c.value, c.row, nr, c.column, nc)))
     return old
 
 
@@ -835,17 +869,27 @@ SITE_SOURCES = [
 
 
 def ensure_site_column(ws):
-    """시트 오른쪽 끝(손으로 더한 열 다음)에 「현장」 열을 둔다. 써 둔 값은 merge_into_existing 이 옮겨 준다."""
+    """맨 앞 A열을 「현장」 열로 둔다. 써 둔 값은 merge_into_existing 이 옮겨 준다."""
     hdr = [c.value for c in ws[1]]
-    if SITE_HDR in hdr:
-        return hdr.index(SITE_HDR) + 1
-    col = len(hdr) + 1
-    while col > 1 and ws.cell(1, col - 1).value in (None, ""):
-        col -= 1
+    if SITE_HDR in [norm_header(h) for h in hdr]:
+        col = [norm_header(h) for h in hdr].index(SITE_HDR) + 1
+    else:
+        if ws.cell(1, 1).value not in (None, ""):
+            # 처음 만드는 파일: 열을 하나 밀어 A열을 비운다
+            from openpyxl.utils.cell import column_index_from_string
+            dims = {k: d.width for k, d in ws.column_dimensions.items()}
+            ws.insert_cols(1)
+            for k, w in dims.items():
+                ws.column_dimensions[get_column_letter(column_index_from_string(k) + 1)].width = w
+            if ws.freeze_panes:
+                ws.freeze_panes = shift_cell_ref(ws.freeze_panes, 1)
+            if ws.auto_filter.ref:
+                ws.auto_filter.ref = f"A1:{shift_cell_ref(ws.auto_filter.ref.split(':')[1], 1)}"
+        col = 1
     c = ws.cell(1, col, SITE_HDR)
     c.font = Font(bold=True, color="7F6000"); c.fill = PatternFill("solid", fgColor="FFD966")
     c.alignment = Alignment(horizontal="center", vertical="center")
-    ws.column_dimensions[get_column_letter(col)].width = 18
+    ws.column_dimensions[get_column_letter(col)].width = 14
     return col
 
 

@@ -168,7 +168,7 @@ def main() -> int:
     dry_run = os.environ.get("DRY_RUN") == "1"
 
     key = ec.generate_private_key(ec.SECP256R1())
-    found, failures = [], 0
+    found, failures, alerted = [], 0, set()
     for watch in watches:
         state_key = json.dumps([watch["keyword"], watch.get("exclude", ""),
                                 watch.get("price_min", 0), watch.get("price_max", 0)], ensure_ascii=False)
@@ -186,7 +186,9 @@ def main() -> int:
             state[state_key] = ids
             continue
         seen_set = set(seen)
-        new = [it for it in items if it["id"] not in seen_set]
+        # Skip items another watch already reported in this run (overlapping keywords).
+        new = [it for it in items if it["id"] not in seen_set and it["id"] not in alerted]
+        alerted.update(it["id"] for it in new)
         print(f"[ok] {watch['keyword']}: {len(items)} fetched, {len(new)} new")
         if new:
             found.append((watch, new))

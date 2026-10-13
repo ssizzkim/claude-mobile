@@ -97,7 +97,7 @@ class App:
         self.certs: list[tuple[str, Path]] = []
         self.last_output: Path | None = None
 
-        root.title(APP_NAME)
+        root.title(f"{APP_NAME}  (버전 {report.APP_VERSION})")
         root.minsize(620, 560)
         frame = ttk.Frame(root, padding=16)
         frame.pack(fill="both", expand=True)

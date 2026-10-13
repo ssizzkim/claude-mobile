@@ -59,8 +59,46 @@ PATH_ACCOUNT_LIST = "/v1/kr/bank/b/account/account-list"
 PATH_TRANSACTIONS = "/v1/kr/bank/b/account/transaction-list"
 
 
+APP_VERSION = "2026.10.13-6"
+
+
 class AppError(Exception):
     pass
+
+
+# ------------------------------------------------------------------ 한글 자판으로 친 비밀번호
+
+_KEYS = dict(zip("ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔㅁㄴㅇㄹㅎㅗㅓㅏㅣㅋㅌㅊㅍㅠㅜㅡㅃㅉㄸㄲㅆㅒㅖ",
+                 "qwertyuiopasdfghjklzxcvbnmQWERTOP"))
+_KEYS.update({"ㅘ": "hk", "ㅙ": "ho", "ㅚ": "hl", "ㅝ": "nj", "ㅞ": "np", "ㅟ": "nl", "ㅢ": "ml",
+              "ㄳ": "rt", "ㄵ": "sw", "ㄶ": "sg", "ㄺ": "fr", "ㄻ": "fa", "ㄼ": "fq", "ㄽ": "ft",
+              "ㄾ": "fx", "ㄿ": "fv", "ㅀ": "fg", "ㅄ": "qt"})
+_CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ"
+_JUNG = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ"
+_JONG = ["", *"ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ"]
+
+
+def keyboard_ascii(text: str) -> str:
+    """한글 입력 상태에서 친 글자를 실제로 누른 영문 키로 되돌린다(두벌식). '가1' → 'rk1'"""
+    out = []
+    for char in text:
+        code = ord(char) - 0xAC00
+        if 0 <= code < 11172:
+            jamo = [_CHO[code // 588], _JUNG[(code % 588) // 28], _JONG[code % 28]]
+            out.append("".join(_KEYS[j] for j in jamo if j))
+        else:
+            out.append(_KEYS.get(char, char))
+    return "".join(out)
+
+
+def fix_password(password: str, log) -> str:
+    if password.isascii():
+        return password
+    converted = keyboard_ascii(password)
+    if converted.isascii():
+        log("  · 비밀번호가 한글 자판으로 입력돼 있어 영문 키로 바꿔서 씁니다(입력할 때 한/영 확인).")
+        return converted
+    raise AppError("인증서 비밀번호에 영문·숫자·기호가 아닌 글자가 있습니다. 한/영 키를 확인하고 다시 입력하세요.")
 
 
 # ------------------------------------------------------------------ 설정
@@ -568,7 +606,9 @@ def run(start: date, end: date, *, cert_dir: Path | None = None, password: str =
 
     bank_mode: browser(크롬 화면 반자동, 기본) / codef / files(내려받아 둔 엑셀 파일)"""
     out = out or default_output(start, end)
-    log(f"조회 기간: {start} ~ {end}")
+    log(f"버전 {APP_VERSION} · 조회 기간: {start} ~ {end}")
+    if password:
+        password = fix_password(password, log)
     check_writable(out.parent)
     log(f"저장 폴더: {out.parent}")
     warnings: list[str] = []

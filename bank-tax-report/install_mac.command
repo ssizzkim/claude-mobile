@@ -56,6 +56,12 @@ mkdir -p "$SUPPORT" "$CODE"
 "$VENV/bin/python" -c 'import tkinter' >/dev/null 2>&1 || { rm -rf "$VENV"; "$PY" -m venv "$VENV"; }
 "$VENV/bin/python" -m pip install --upgrade --quiet pip
 "$VENV/bin/python" -m pip install --quiet -r "$SRC/requirements.txt"
+# 실행 중인 예전 앱은 닫는다(열려 있으면 새 버전이 아니라 메모리의 예전 코드로 계속 돈다)
+if pgrep -f "BankTaxReport/app/app.py" >/dev/null 2>&1; then
+  echo "실행 중인 앱을 닫습니다..."
+  pkill -f "BankTaxReport/app/app.py" || true
+  sleep 1
+fi
 cp "$SRC/report.py" "$SRC/app.py" "$SRC/shinhan_browser.py" "$SRC/bank_excel.py" "$CODE/"
 
 # 4) .app 번들

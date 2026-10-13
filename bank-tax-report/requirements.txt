@@ -1,5 +1,5 @@
 requests>=2.31
 openpyxl>=3.1
 cryptography>=42
-# 홈택스 조회 도구 (Python 3.12 이상 필요)
-hometax @ git+https://github.com/hjsh200219/hometax@15aa5d490398bfc42fd3ae3541e8f206ec443a9d
+# 홈택스 조회 도구 (Python 3.12 이상 필요, git 없이 압축본으로 받음)
+hometax @ https://github.com/hjsh200219/hometax/archive/15aa5d490398bfc42fd3ae3541e8f206ec443a9d.zip

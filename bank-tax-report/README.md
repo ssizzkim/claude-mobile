@@ -15,14 +15,18 @@ CODEF(은행 조회용)와 홈택스뿐이고, 인증서 비밀번호는 어디�
 
 ## 맥에서 설치·사용
 
-1. **Python 3.12 이상** 설치: <https://www.python.org/downloads/macos/> 에서 *macOS 64-bit universal2 installer*
-   (Homebrew 파이썬은 화면 라이브러리(tkinter)가 빠져 있을 수 있어 python.org 설치본을 권장)
-2. 이 `bank-tax-report` 폴더를 받아서(GitHub → Code → Download ZIP) 압축을 풉니다.
-3. `install_mac.command` 를 **오른쪽 클릭 → 열기** (처음 한 번은 "확인되지 않은 개발자" 경고 때문에 오른쪽 클릭으로 열어야 합니다).
-   git 이 없으면 설치 창이 뜨니 설치 후 다시 실행하세요.
-   → `/Applications/거래·세금계산서 조회.app` 이 만들어집니다.
-4. 앱 실행 → **[CODEF 설정…]** 에 CODEF 키 3개 붙여 넣기(아래 "CODEF 키 발급").
-5. 공동인증서 고르기(`~/Library/Preferences/NPKI` 와 USB의 `NPKI` 폴더에서 자동으로 찾음) → 비밀번호 →
+1. **터미널**(응용 프로그램 → 유틸리티 → 터미널)을 열고 아래 한 줄을 붙여 넣고 엔터:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/ssizzkim/claude-mobile/refs/heads/main/bank-tax-report/bootstrap_mac.sh | bash
+   ```
+
+   앱 파일, 필요하면 앱 전용 Python(관리자 암호 불필요), 패키지를 모두 내려받아 설치하고
+   `/Applications/거래·세금계산서 조회.app` 을 만든 뒤 바로 실행합니다(몇 분 걸림).
+   다시 실행하면 최신 버전으로 업데이트됩니다.
+   (압축 파일로 받았다면 폴더 안의 `install_mac.command` 를 **오른쪽 클릭 → 열기** 해도 같습니다.)
+2. 앱 실행 → **[CODEF 설정…]** 에 CODEF 키 3개 붙여 넣기(아래 "CODEF 키 발급").
+3. 공동인증서 고르기(`~/Library/Preferences/NPKI` 와 USB의 `NPKI` 폴더에서 자동으로 찾음) → 비밀번호 →
    기간(기본 최근 7일, [지난주(월~일)] 버튼) → **[조회하고 엑셀 저장]**.
    엑셀은 `문서/거래_세금계산서/` 에 저장되고 바로 열립니다.
 
@@ -30,7 +34,7 @@ CODEF(은행 조회용)와 홈택스뿐이고, 인증서 비밀번호는 어디�
 - 홈택스만 볼 거면 **신한은행** 체크를 끄면 CODEF 키 없이 쓸 수 있습니다.
 - 설정·상태 파일: `~/Library/Application Support/BankTaxReport/` (CODEF 키는 이 폴더의 `settings.json`, 본인만 읽기 권한).
   오류 기록은 같은 폴더의 `app.log`.
-- 업데이트: 새 폴더를 받아 `install_mac.command` 다시 실행. 삭제: `uninstall_mac.command`.
+- 업데이트: 위 한 줄 명령을 다시 실행. 삭제: `uninstall_mac.command`.
 - 맥 인증서 위치를 모르겠으면: 은행/홈택스 사이트에서 *인증서 내보내기(PC 저장)* 를 하면
   `~/Library/Preferences/NPKI/...` 아래에 `signCert.der`, `signPri.key` 가 생깁니다.
 
@@ -52,8 +56,7 @@ CODEF(은행 조회용)와 홈택스뿐이고, 인증서 비밀번호는 어디�
 ### 1. 설치 (처음 한 번)
 
 1. **Python 3.12 이상** 설치: <https://www.python.org/downloads/> (설치 화면에서 *Add python.exe to PATH* 체크)
-2. **Git** 설치: <https://git-scm.com/download/win> (hometax 도구를 받는 데 필요)
-3. 이 `bank-tax-report` 폴더를 PC에 복사하고 `setup.bat` 더블클릭
+2. 이 `bank-tax-report` 폴더를 PC에 복사하고 `setup.bat` 더블클릭
    → 필요한 패키지를 설치하고 `.env` 파일을 만듭니다.
 
 ### 2. CODEF 키 발급 (은행 조회용, 처음 한 번)
@@ -113,4 +116,4 @@ Windows **작업 스케줄러** → 기본 작업 만들기 → 매주 월요일
 | `신한은행 공동인증서 등록 실패 CF-...` | 인증서 비밀번호, 인증서가 신한은행 기업뱅킹에 등록돼 있는지 확인. 메시지의 코드로 CODEF 문서 검색 |
 | `지정한 경로에서 인증서를 찾지 못했습니다` | `CERT_DIR`이 `signCert.der`가 있는 폴더 자체인지 확인 |
 | `개인 공동인증서 … 사업자 자료는 조회되지 않습니다` | 홈택스는 사업자(법인) 인증서로 로그인해야 합니다 |
-| `hometax 도구가 설치되지 않았습니다` | 맥: `install_mac.command` 다시 실행 / Windows: Git 설치 후 `setup.bat` 다시 실행 |
+| `hometax 도구가 설치되지 않았습니다` | 맥: 설치 명령 다시 실행 / Windows: `setup.bat` 다시 실행 |

@@ -11,39 +11,36 @@ CODE="$SUPPORT/app"
 
 echo "== $APP_NAME 설치 =="
 
-# 1) Python 3.12 이상 + tkinter (python.org 설치본 권장)
+# 1) Python 3.12 이상 + tkinter. 없으면 uv 로 이 앱 전용 파이썬을 받는다(관리자 암호 불필요)
+#    (/usr/bin/python3 은 개발자 도구 설치 창을 띄울 수 있어 후보에서 뺀다)
 PY=""
 for candidate in \
   /Library/Frameworks/Python.framework/Versions/3.14/bin/python3 \
   /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 \
   /Library/Frameworks/Python.framework/Versions/3.12/bin/python3 \
-  /opt/homebrew/bin/python3 /usr/local/bin/python3 python3; do
-  if command -v "$candidate" >/dev/null 2>&1 &&
+  /opt/homebrew/bin/python3 /usr/local/bin/python3; do
+  if [ -x "$candidate" ] &&
      "$candidate" -c 'import sys, tkinter; sys.exit(0 if sys.version_info >= (3, 12) else 1)' >/dev/null 2>&1; then
-    PY="$(command -v "$candidate")"; break
+    PY="$candidate"; break
   fi
 done
 if [ -z "$PY" ]; then
-  echo
-  echo "Python 3.12 이상(tkinter 포함)이 필요합니다."
-  echo "https://www.python.org/downloads/macos/ 에서 macOS 64-bit universal2 installer 를 받아 설치한 뒤"
-  echo "이 파일을 다시 실행하세요."
-  open "https://www.python.org/downloads/macos/" || true
-  read -r -p "엔터를 누르면 닫힙니다." _ || true
-  exit 1
+  echo "알맞은 Python 이 없어 앱 전용 Python 3.13 을 내려받습니다..."
+  mkdir -p "$SUPPORT/bin"
+  if [ ! -x "$SUPPORT/bin/uv" ]; then
+    curl -LsSf https://astral.sh/uv/install.sh |
+      env UV_INSTALL_DIR="$SUPPORT/bin" UV_NO_MODIFY_PATH=1 INSTALLER_NO_MODIFY_PATH=1 sh
+  fi
+  export UV_PYTHON_INSTALL_DIR="$SUPPORT/python"
+  "$SUPPORT/bin/uv" python install 3.13
+  PY="$("$SUPPORT/bin/uv" python find 3.13)"
+  "$PY" -c 'import tkinter' || { echo "Python 화면 모듈(tkinter)을 불러오지 못했습니다."; exit 1; }
 fi
 echo "Python: $PY ($("$PY" --version))"
 
-if ! command -v git >/dev/null 2>&1 || ! git --version >/dev/null 2>&1; then
-  echo "git 이 필요합니다. 잠시 뒤 뜨는 창에서 [설치]를 누르고, 끝나면 이 파일을 다시 실행하세요."
-  xcode-select --install || true
-  read -r -p "엔터를 누르면 닫힙니다." _ || true
-  exit 1
-fi
-
 # 2) 가상환경 + 패키지
 mkdir -p "$SUPPORT" "$CODE"
-[ -x "$VENV/bin/python" ] || "$PY" -m venv "$VENV"
+"$VENV/bin/python" -c 'import tkinter' >/dev/null 2>&1 || { rm -rf "$VENV"; "$PY" -m venv "$VENV"; }
 "$VENV/bin/python" -m pip install --upgrade --quiet pip
 "$VENV/bin/python" -m pip install --quiet -r "$SRC/requirements.txt"
 cp "$SRC/report.py" "$SRC/app.py" "$CODE/"

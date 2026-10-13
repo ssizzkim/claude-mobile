@@ -2,14 +2,39 @@
   "watches": [
     {
       "keyword": "jetboil sol",
-      "title_any": ["ti", "solti", "titanium", "チタン", "チタニウム"],
+      "title_any": [
+        "ti",
+        "solti",
+        "titanium",
+        "チタン",
+        "チタニウム"
+      ],
       "exclude": "",
       "price_min": 0,
       "price_max": 0
     },
     {
       "keyword": "ジェットボイル ソル",
-      "title_any": ["ti", "solti", "titanium", "チタン", "チタニウム"],
+      "title_any": [
+        "ti",
+        "solti",
+        "titanium",
+        "チタン",
+        "チタニウム"
+      ],
+      "exclude": "",
+      "price_min": 0,
+      "price_max": 0
+    },
+    {
+      "keyword": "ジェットボイル SOL",
+      "title_any": [
+        "ti",
+        "solti",
+        "titanium",
+        "チタン",
+        "チタニウム"
+      ],
       "exclude": "",
       "price_min": 0,
       "price_max": 0

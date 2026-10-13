@@ -32,7 +32,7 @@ if [ -z "$PY" ]; then
       env UV_INSTALL_DIR="$SUPPORT/bin" UV_NO_MODIFY_PATH=1 INSTALLER_NO_MODIFY_PATH=1 sh
   fi
   export UV_PYTHON_INSTALL_DIR="$SUPPORT/python"
-  "$SUPPORT/bin/uv" python install 3.13
+  "$SUPPORT/bin/uv" python install --no-bin 3.13
   PY="$("$SUPPORT/bin/uv" python find 3.13)"
   "$PY" -c 'import tkinter' || { echo "Python 화면 모듈(tkinter)을 불러오지 못했습니다."; exit 1; }
 fi

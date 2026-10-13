@@ -38,7 +38,6 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 KST = timezone(timedelta(hours=9))
-STATE_FILE = HERE / ".state.json"  # CODEF connectedId 보관(비밀번호·인증서는 저장하지 않음)
 
 SHINHAN = "0088"
 CODEF_OAUTH = "https://oauth.codef.io/oauth/token"
@@ -107,15 +106,25 @@ def cert_files(cert_dir: Path) -> tuple[Path, Path]:
     return der, key
 
 
+def data_dir() -> Path:
+    """설정·상태 파일 위치. 맥 앱은 BTR_HOME 으로 ~/Library/Application Support 아래를 쓴다."""
+    return Path(os.environ.get("BTR_HOME") or HERE)
+
+
+def state_file() -> Path:
+    return data_dir() / ".state.json"  # CODEF connectedId 보관(비밀번호·인증서는 저장하지 않음)
+
+
 def load_state() -> dict:
     try:
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        return json.loads(state_file().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 
 
 def save_state(state: dict) -> None:
-    STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    state_file().parent.mkdir(parents=True, exist_ok=True)
+    state_file().write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 # ------------------------------------------------------------------ 신한은행 (CODEF)
@@ -284,7 +293,9 @@ def fetch_bank(start: date, end: date, cert_dir: Path, password: str) -> tuple[l
 
 
 def hometax_command() -> list[str]:
-    found = shutil.which("hometax")
+    # 맥 앱은 PATH가 짧으므로 지금 쓰는 파이썬(가상환경)의 bin 을 먼저 본다
+    beside = Path(sys.executable).parent / ("hometax.exe" if os.name == "nt" else "hometax")
+    found = str(beside) if beside.is_file() else shutil.which("hometax")
     if found:
         return [found]
     # pip/uv로 설치했지만 PATH에 없을 때
@@ -456,6 +467,51 @@ def demo_data(start: date, end: date):
 # ------------------------------------------------------------------ 진입점
 
 
+def default_output(start: date, end: date) -> Path:
+    out_dir = Path(env("OUTPUT_DIR") or data_dir() / "output").expanduser()
+    return out_dir / f"거래_세금계산서_{start:%Y%m%d}-{end:%Y%m%d}.xlsx"
+
+
+def run(start: date, end: date, *, cert_dir: Path | None = None, password: str = "",
+        bank_on: bool = True, hometax_on: bool = True, demo: bool = False,
+        out: Path | None = None, log=print) -> tuple[Path, list[str]]:
+    """조회 → 엑셀 저장. (저장 경로, 경고 목록)을 돌려준다. CLI와 맥 앱이 함께 쓴다."""
+    out = out or default_output(start, end)
+    log(f"조회 기간: {start} ~ {end}")
+    warnings: list[str] = []
+    bank = invoices = None
+    if demo:
+        bank, invoices = demo_data(start, end)
+        warnings.append("데모 데이터입니다(실제 조회 아님).")
+    else:
+        if not cert_dir:
+            raise AppError("공동인증서 폴더를 지정하세요.")
+        if not password:
+            raise AppError("공동인증서 비밀번호를 입력하세요.")
+        if bank_on:
+            log("[1/2] 신한은행 기업 계좌 거래내역 조회 중...")
+            try:
+                bank, bank_warnings = fetch_bank(start, end, cert_dir, password)
+                warnings += bank_warnings
+                log(f"  거래 {len(bank)}건")
+            except Exception as error:  # 네트워크 오류 등도 한쪽 실패로 처리
+                warnings.append(f"신한은행 조회 실패: {error}")
+                log(f"  실패: {error}")
+        if hometax_on:
+            log("[2/2] 홈택스 세금계산서 발급·수취 내역 조회 중...")
+            try:
+                invoices = fetch_hometax(start, end, cert_dir, password)
+                log(f"  발급 {len(invoices['sales'])}건, 수취 {len(invoices['purchases'])}건")
+            except Exception as error:
+                warnings.append(f"홈택스 조회 실패: {error}")
+                log(f"  실패: {error}")
+        if bank is None and invoices is None:
+            raise AppError("조회에 모두 실패했습니다.\n" + "\n".join(warnings))
+    build_workbook(out, start, end, bank, invoices, warnings)
+    log(f"엑셀 저장: {out}")
+    return out, warnings
+
+
 def main(argv=None) -> int:
     load_dotenv(HERE / ".env")
     parser = argparse.ArgumentParser(description="신한은행 기업 거래·이체 + 홈택스 세금계산서 → 엑셀")
@@ -470,42 +526,17 @@ def main(argv=None) -> int:
 
     try:
         start, end = parse_period(args)
-        out_dir = Path(env("OUTPUT_DIR") or HERE / "output")
-        out = Path(args.out) if args.out else out_dir / f"거래_세금계산서_{start:%Y%m%d}-{end:%Y%m%d}.xlsx"
-        print(f"조회 기간: {start} ~ {end}")
-
-        warnings: list[str] = []
-        bank = invoices = None
-        if args.demo:
-            bank, invoices = demo_data(start, end)
-            warnings.append("데모 데이터입니다(실제 조회 아님).")
-        else:
-            cert_dir = Path(env("CERT_DIR")).expanduser()
+        cert_dir = password = None
+        if not args.demo:
             if not env("CERT_DIR"):
                 raise AppError("CERT_DIR(공동인증서 폴더)를 설정하세요.")
+            cert_dir = Path(env("CERT_DIR")).expanduser()
             password = env("CERT_PASSWORD") or getpass.getpass("공동인증서 비밀번호: ")
-            if not args.skip_bank:
-                print("[1/2] 신한은행 기업 계좌 거래내역 조회 중...")
-                try:
-                    bank, bank_warnings = fetch_bank(start, end, cert_dir, password)
-                    warnings += bank_warnings
-                    print(f"  거래 {len(bank)}건")
-                except AppError as error:
-                    warnings.append(f"신한은행 조회 실패: {error}")
-                    print(f"  실패: {error}", file=sys.stderr)
-            if not args.skip_hometax:
-                print("[2/2] 홈택스 세금계산서 발급·수취 내역 조회 중...")
-                try:
-                    invoices = fetch_hometax(start, end, cert_dir, password)
-                    print(f"  발급 {len(invoices['sales'])}건, 수취 {len(invoices['purchases'])}건")
-                except AppError as error:
-                    warnings.append(f"홈택스 조회 실패: {error}")
-                    print(f"  실패: {error}", file=sys.stderr)
-            if bank is None and invoices is None:
-                raise AppError("조회에 모두 실패했습니다.\n" + "\n".join(warnings))
-
-        build_workbook(out, start, end, bank, invoices, warnings)
-        print(f"엑셀 저장: {out}")
+        _, warnings = run(
+            start, end, cert_dir=cert_dir, password=password or "",
+            bank_on=not args.skip_bank, hometax_on=not args.skip_hometax, demo=args.demo,
+            out=Path(args.out) if args.out else None,
+        )  # fmt: skip
         return 1 if warnings and not args.demo else 0
     except AppError as error:
         print(f"오류: {error}", file=sys.stderr)

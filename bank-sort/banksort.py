@@ -144,6 +144,13 @@ def num(v):
         return 0
 
 
+def num_or_none(v):
+    """홈택스는 수량·단가를 '7,000,000' 같은 글자로 준다."""
+    if v in (None, ""):
+        return None
+    return num(v)
+
+
 def clean(v):
     return v.strip() if isinstance(v, str) else v
 
@@ -350,7 +357,7 @@ def hometax_rows(rows, title_text):
             분류=col(r, "전자세금계산서분류", "분류"), 종류=col(r, "전자세금계산서종류", "종류"),
             발급유형=col(r, "발급유형"), 비고=col(r, "비고"), 영청=col(r, "영수/청구구분", "영수/청구"),
             공급자메일=col(r, "공급자이메일"), 받는자메일=col(r, "공급받는자이메일1", "공급받는자이메일"),
-            품목=col(r, "품목명"), 수량=col(r, "품목수량", "수량"), 단가=col(r, "품목단가", "단가"),
+            품목=col(r, "품목명"), 수량=num_or_none(col(r, "품목수량", "수량")), 단가=num_or_none(col(r, "품목단가", "단가")),
         ))
         d = out[-1]
         if not d["합계"]:
@@ -895,8 +902,10 @@ def run(paths):
         lines.append("건너뜀: " + s)
 
     # 통합 다시 만들기 (분류·매칭 규칙은 integrate.py)
-    g = runpy.run_path(str(HERE / "integrate.py"), init_globals=dict(
-        BASE=str(base), LOAD_Q=lambda: load_all_q(base), LOAD_T=lambda: load_all_t(base)))
+    import contextlib, io
+    with contextlib.redirect_stdout(io.StringIO()):   # integrate.py 의 진행 기록은 결과 창에 보이지 않게
+        g = runpy.run_path(str(HERE / "integrate.py"), init_globals=dict(
+            BASE=str(base), LOAD_Q=lambda: load_all_q(base), LOAD_T=lambda: load_all_t(base)))
     new_wb = g["wb"]
     generated = list(new_wb.sheetnames)
     unmatched_new = 0

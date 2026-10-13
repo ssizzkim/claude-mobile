@@ -42,17 +42,14 @@ Private Sub CloseTarget()
 End Sub
 
 Public Sub BankSortRun()
-    Dim picked As Variant, paths As String, i As Long, res As String
-    picked = Application.GetOpenFilename(Title:=U("51221,47532,54624,32,50641,49472,32,54028,51068,51012,32,47784,46160,32,44256,47476,49464,50836,32,40,49888,54620,32,51312,54924,183,51060,52404,44208,44284,44,32,54856,53469,49828,32,47588,52636,183,47588,51077,41"), MultiSelect:=True)
-    If IsArray(picked) Then
-        For i = LBound(picked) To UBound(picked)
-            paths = paths & picked(i) & vbLf
-        Next i
-    ElseIf VarType(picked) = vbString Then
-        paths = picked & vbLf
-    Else
+    ' Mac Excel's GetOpenFilename cannot multi-select, so the AppleScript bridge shows the Finder picker.
+    Dim paths As String
+    paths = Bridge("pickFiles", U("51221,47532,54624,32,50641,49472,32,54028,51068,51012,32,47784,46160,32,44256,47476,49464,50836,32,40,8984,32,45572,47476,44256,32,50668,47084,32,44060,58,32,49888,54620,32,51312,54924,183,51060,52404,44208,44284,44,32,54856,53469,49828,32,47588,52636,183,47588,51077,41"))
+    If Left$(paths, 6) = "ERROR:" Then
+        MsgBox Mid$(paths, 7), vbExclamation
         Exit Sub
     End If
+    If Len(Trim$(Replace(Replace(paths, vbLf, ""), vbCr, ""))) = 0 Then Exit Sub
     RunWith paths
 End Sub
 

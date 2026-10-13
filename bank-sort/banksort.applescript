@@ -4,6 +4,20 @@ on runBankSort(paths)
 	return runPy("", paths)
 end runBankSort
 
+on pickFiles(promptText)
+	-- 엑셀 VBA 의 GetOpenFilename 은 맥에서 여러 개 선택이 안 되어 맥 기본 창을 쓴다
+	try
+		set picked to choose file with prompt promptText default location (path to downloads folder) with multiple selections allowed
+	on error number -128
+		return ""
+	end try
+	set out to ""
+	repeat with f in picked
+		set out to out & (POSIX path of f) & linefeed
+	end repeat
+	return out
+end pickFiles
+
 on targetNames(unused)
 	return runPy("--target-names", "")
 end targetNames

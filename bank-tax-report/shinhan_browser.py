@@ -56,13 +56,17 @@ def chrome_path() -> str:
     raise StepFailed("Google Chrome 을 찾지 못했습니다. 설치 명령을 다시 실행하면 크롬도 설치됩니다.")
 
 
+HIDE_WEBDRIVER_JS = "Object.defineProperty(Navigator.prototype, 'webdriver', {get: () => undefined});"
+
+
 def open_chrome(pw, profile: Path):
     """설치된 크롬을 이 앱 전용 프로필로 띄운다(일반 크롬과 섞이지 않음)."""
     profile.mkdir(parents=True, exist_ok=True)
-    args = ["--no-first-run", "--no-default-browser-check", "--disable-blink-features=AutomationControlled"]
+    # 경고 줄이 뜨는 플래그(--disable-blink-features 등)는 쓰지 않고, 자동화 표시는 스크립트로 숨긴다
+    args = ["--no-first-run", "--no-default-browser-check"]
     args += os.environ.get("BTR_CHROME_ARGS", "").split()
     try:
-        return pw.chromium.launch_persistent_context(
+        context = pw.chromium.launch_persistent_context(
             str(profile),
             executable_path=chrome_path(),
             headless=False,
@@ -76,6 +80,8 @@ def open_chrome(pw, profile: Path):
         if "ProcessSingleton" in str(error) or "profile" in str(error).lower():
             raise StepFailed("앱이 전에 연 크롬 창이 아직 열려 있습니다. 그 크롬 창을 닫고 다시 시도하세요.") from None
         raise StepFailed(f"크롬을 띄우지 못했습니다: {error}") from None
+    context.add_init_script(HIDE_WEBDRIVER_JS)
+    return context
 
 
 # ------------------------------------------------------------------ 화면 찾기

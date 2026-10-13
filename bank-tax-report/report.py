@@ -59,7 +59,7 @@ PATH_ACCOUNT_LIST = "/v1/kr/bank/b/account/account-list"
 PATH_TRANSACTIONS = "/v1/kr/bank/b/account/transaction-list"
 
 
-APP_VERSION = "2026.10.13-7"
+APP_VERSION = "2026.10.13-8"
 
 
 class AppError(Exception):

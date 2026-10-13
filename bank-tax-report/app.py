@@ -377,12 +377,22 @@ class App:
     # -- 로그
 
     def write(self, text: str):
+        try:  # 문제를 알려 줄 때 보낼 수 있게 파일로도 남긴다
+            SUPPORT.mkdir(parents=True, exist_ok=True)
+            with open(SUPPORT / "최근실행기록.txt", "a", encoding="utf-8") as file:
+                file.write(text + "\n")
+        except OSError:
+            pass
         self.log.configure(state="normal")
         self.log.insert("end", text + "\n")
         self.log.see("end")
         self.log.configure(state="disabled")
 
     def clear(self):
+        try:
+            (SUPPORT / "최근실행기록.txt").unlink()
+        except OSError:
+            pass
         self.log.configure(state="normal")
         self.log.delete("1.0", "end")
         self.log.configure(state="disabled")

@@ -361,10 +361,14 @@ def download_statements(start: date, end: date, home: Path, log=print, done=None
     """신한 기업뱅킹에서 거래내역·이체결과 엑셀을 받아 {자료: [파일]} 로 돌려준다.
 
     done: 사람이 앱에서 [다음 ▶]을 누르면 set 되는 threading.Event (로그인 완료 / 이 자료 건너뛰기).
-    save_dir: 은행 원본 파일을 둘 폴더(기본: home/downloads). 그 아래 조회시각/자료별 폴더가 생긴다."""
+    save_dir: 은행 원본 파일을 복사해 둘 폴더. 그 아래 조회시각/자료별 폴더가 생긴다.
+
+    크롬은 항상 앱 폴더(home/downloads)에 받는다. 데스크탑·문서는 macOS 가 크롬의 쓰기를
+    막을 수 있어서, 받은 뒤 앱이 save_dir 로 복사한다."""
     from playwright.sync_api import sync_playwright
 
-    run_dir = (save_dir or home / "downloads") / datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_dir = home / "downloads" / stamp
     recipes = load_recipes(home)
     result: dict[str, list[Path]] = {}
 
@@ -380,6 +384,22 @@ def download_statements(start: date, end: date, home: Path, log=print, done=None
         browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{DEBUG_PORT}")
         context = browser.contexts[0]
         cdp = browser.new_browser_cdp_session()
+        names_by_guid: dict[str, str] = {}
+
+        def download_begin(event):
+            names_by_guid[event.get("guid", "")] = event.get("suggestedFilename", "")
+            log(f"  · 다운로드 시작: {event.get('suggestedFilename', '')}")
+
+        def download_progress(event):
+            state = event.get("state")
+            name = names_by_guid.get(event.get("guid", ""), "")
+            if state == "completed":
+                log(f"  · 다운로드 완료: {name}")
+            elif state == "canceled":
+                log(f"  · 다운로드가 취소/차단됐습니다: {name} (크롬 아래쪽 다운로드 표시줄을 확인하세요)")
+
+        cdp.on("Browser.downloadWillBegin", download_begin)
+        cdp.on("Browser.downloadProgress", download_progress)
         recorded: list[dict] = []
         recording = {"on": False}
 
@@ -491,8 +511,28 @@ def download_statements(start: date, end: date, home: Path, log=print, done=None
             cdp.send("Browser.setDownloadBehavior", {"behavior": "default"})
         except Exception:
             pass
-    log(f"  · 은행 원본 파일 폴더: {run_dir}")
+    if save_dir:
+        result = copy_out(result, run_dir, save_dir / stamp, log)
     return result
+
+
+def copy_out(result: dict[str, list[Path]], run_dir: Path, target: Path, log) -> dict[str, list[Path]]:
+    """앱 폴더에 받은 원본을 저장 폴더로 복사한다. 실패하면 앱 폴더 원본을 그대로 쓴다."""
+    copied: dict[str, list[Path]] = {}
+    for key, files in result.items():
+        copied[key] = []
+        for path in files:
+            dest = target / path.relative_to(run_dir)
+            try:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, dest)
+                copied[key].append(dest)
+            except OSError as error:
+                log(f"  · 저장 폴더로 복사하지 못했습니다({error}). 원본: {path}")
+                copied[key].append(path)
+    if any(copied.values()):
+        log(f"  · 은행 원본 파일: {target}")
+    return copied
 
 
 if __name__ == "__main__":  # 단독 시험: python shinhan_browser.py

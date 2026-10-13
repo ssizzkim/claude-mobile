@@ -504,6 +504,21 @@ def normalize_folder(text: str | Path) -> Path:
     return home.joinpath(*parts)
 
 
+def check_writable(folder: Path) -> None:
+    """은행 로그인 전에 저장 폴더에 쓸 수 있는지 먼저 확인한다(macOS 데스크탑·문서 권한)."""
+    probe = folder / ".btr-write-test"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        probe.write_text("ok")
+        probe.unlink()
+    except OSError as error:
+        raise AppError(
+            f"저장 폴더에 파일을 만들 수 없습니다: {folder}\n({error})\n"
+            "시스템 설정 → 개인정보 보호 및 보안 → 파일 및 폴더(또는 전체 디스크 접근)에서 "
+            "「거래·세금계산서 조회」(또는 Python)의 데스크탑·문서 접근을 켜거나, 다른 저장 폴더를 고르세요."
+        ) from None
+
+
 def output_dir() -> Path:
     return normalize_folder(env("OUTPUT_DIR") or data_dir() / "output")
 
@@ -554,6 +569,8 @@ def run(start: date, end: date, *, cert_dir: Path | None = None, password: str =
     bank_mode: browser(크롬 화면 반자동, 기본) / codef / files(내려받아 둔 엑셀 파일)"""
     out = out or default_output(start, end)
     log(f"조회 기간: {start} ~ {end}")
+    check_writable(out.parent)
+    log(f"저장 폴더: {out.parent}")
     warnings: list[str] = []
     bank = invoices = transfers = None
     if demo:

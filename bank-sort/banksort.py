@@ -819,6 +819,87 @@ def report_sheet(wb, g, new_q, new_inv, summary, names):
     return ws
 
 
+# ------------------------------------------------------------------ 현장별 합계
+
+SITE_SHEET = "현장별 합계"
+SITE_SRC = "통합내역"
+SITE_HDR = "현장"
+SITE_ROWS = 100          # 현장 이름을 몇 개까지 모을지
+SITE_FILL = PatternFill("solid", fgColor="FFF2CC")
+
+
+def ensure_site_column(wb):
+    """통합내역 오른쪽 끝에 「현장」 열을 둔다. 손으로 넣은 값은 merge_into_existing 이 옮겨 준다."""
+    ws = wb[SITE_SRC]
+    hdr = [c.value for c in ws[1]]
+    if SITE_HDR in hdr:
+        return hdr.index(SITE_HDR) + 1
+    col = len([h for h in hdr if h is not None]) + 1
+    while ws.cell(1, col).value not in (None, ""):
+        col += 1
+    c = ws.cell(1, col, SITE_HDR)
+    c.font = Font(bold=True, color="7F6000"); c.fill = PatternFill("solid", fgColor="FFD966")
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws.column_dimensions[get_column_letter(col)].width = 18
+    return col
+
+
+def build_site_sheet(wb):
+    from openpyxl.worksheet.formula import ArrayFormula
+    from openpyxl.worksheet.datavalidation import DataValidation
+    col = ensure_site_column(wb)
+    src = wb[SITE_SRC]
+    L = get_column_letter(col)
+    hdr = [c.value for c in src[1]]
+    G = get_column_letter(hdr.index("출금액") + 1)
+    Nn = get_column_letter(hdr.index("이체금액") + 1)
+    B = get_column_letter(hdr.index("거래일자") + 1)
+    last = max(src.max_row, 2) + 500           # 앞으로 늘어날 행까지
+    rng = f"'{SITE_SRC}'!${L}$2:${L}${last}"
+    if SITE_SHEET in wb.sheetnames:
+        idx = wb.sheetnames.index(SITE_SHEET); del wb[SITE_SHEET]
+    else:
+        idx = wb.sheetnames.index(SITE_SRC) + 1
+    ws = wb.create_sheet(SITE_SHEET, idx)
+    ws["A1"] = f"현장별 출금 합계 — 「{SITE_SRC}」 시트 {L}열(현장)에 이름을 쓰면 여기에 모입니다"
+    ws["A1"].font = Font(bold=True, size=13)
+    heads = ["현장", "건수", "출금액 합계", "이체금액 합계(수수료 제외)", "첫 거래일", "마지막 거래일"]
+    for i, h in enumerate(heads, 1):
+        c = ws.cell(3, i, h); c.font = HDR_F; c.fill = HDR_FILL; c.alignment = Alignment(horizontal="center")
+    ws["A2"] = "전체"; ws["A2"].font = Font(bold=True)
+    first, end = 4, 4 + SITE_ROWS - 1
+    ws["B2"] = f"=SUM(B{first}:B{end})"; ws["C2"] = f"=SUM(C{first}:C{end})"; ws["D2"] = f"=SUM(D{first}:D{end})"
+    for c in ("B2", "C2", "D2"):
+        ws[c].font = Font(bold=True); ws[c].number_format = "#,##0"
+    for r in range(first, end + 1):
+        # 통합내역 현장 열에서 아직 위에 없는 이름을 차례로 꺼낸다(배열 수식)
+        f = (f'=IFERROR(INDEX({rng},MATCH(0,COUNTIF($A${first - 1}:A{r - 1},{rng})+({rng}=""),0)),"")')
+        ws[f"A{r}"] = ArrayFormula(f"A{r}", f)
+        ws[f"B{r}"] = f'=IF(A{r}="","",COUNTIF({rng},A{r}))'
+        ws[f"C{r}"] = f"=IF(A{r}=\"\",\"\",SUMIFS('{SITE_SRC}'!${G}$2:${G}${last},{rng},A{r}))"
+        ws[f"D{r}"] = f"=IF(A{r}=\"\",\"\",SUMIFS('{SITE_SRC}'!${Nn}$2:${Nn}${last},{rng},A{r}))"
+        ws[f"E{r}"] = f"=IF(A{r}=\"\",\"\",_xlfn.MINIFS('{SITE_SRC}'!${B}$2:${B}${last},{rng},A{r}))"
+        ws[f"F{r}"] = f"=IF(A{r}=\"\",\"\",_xlfn.MAXIFS('{SITE_SRC}'!${B}$2:${B}${last},{rng},A{r}))"
+        for c in ("B", "C", "D"):
+            ws[f"{c}{r}"].number_format = "#,##0"
+        for c in ("E", "F"):
+            ws[f"{c}{r}"].number_format = "yyyy-mm-dd"
+    for i, w in enumerate([24, 8, 16, 22, 12, 12], 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    ws.freeze_panes = "A4"
+    # 현장 칸에 드롭다운(이미 쓴 현장 이름). 새 이름도 그냥 쓸 수 있게 오류는 띄우지 않는다
+    src.data_validations.dataValidation = [dv for dv in src.data_validations.dataValidation
+                                           if L not in str(dv.sqref)]
+    dv = DataValidation(type="list", formula1=f"='{SITE_SHEET}'!$A${first}:$A${end}", allow_blank=True,
+                        showErrorMessage=False)
+    dv.add(f"{L}2:{L}{last}")
+    src.add_data_validation(dv)
+    for r in range(2, src.max_row + 1):
+        if src.cell(r, 1).value is None:
+            break
+        src.cell(r, col).fill = SITE_FILL
+
+
 # ------------------------------------------------------------------ 실행
 
 
@@ -926,6 +1007,7 @@ def run(paths):
         generated.append(REPORT_SHEET)
     # 파일 없이 다시 정리할 때는 지난번 「이번 정리」 시트를 그대로 둔다
     final = merge_into_existing(new_wb, out_path, generated, always_new={REPORT_SHEET})
+    build_site_sheet(final)
     if REPORT_SHEET in final.sheetnames:
         final.active = final.sheetnames.index(REPORT_SHEET)
         for w in final.worksheets:

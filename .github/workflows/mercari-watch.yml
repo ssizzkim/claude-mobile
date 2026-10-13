@@ -35,7 +35,11 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           MAIL_TO: ${{ secrets.MAIL_TO }}
           WATCH_CONFIG: ${{ secrets.WATCH_CONFIG }}
-        run: python mercari-watch/watch.py
+          DRY_RUN: "1"
+          STATE_FILE: /tmp/seen.json
+        run: |
+          python mercari-watch/watch.py
+          python mercari-watch/watch.py
 
       - name: Save seen items
         if: always() && hashFiles('mercari-watch/seen.json') != ''

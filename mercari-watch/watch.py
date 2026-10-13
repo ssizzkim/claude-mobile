@@ -11,6 +11,7 @@ Environment:
   WATCH_CONFIG        Optional JSON that overrides config.json (keeps keywords private)
   STATE_FILE          Path of the seen-IDs file (default: seen.json next to this script)
   DRY_RUN=1           Print new items instead of sending email
+  TEST_EMAIL=1        Send one sample email with the latest listings, then exit (state untouched)
 """
 
 import base64
@@ -186,6 +187,17 @@ def main() -> int:
     dry_run = os.environ.get("DRY_RUN") == "1"
 
     key = ec.generate_private_key(ec.SECP256R1())
+    if os.environ.get("TEST_EMAIL") == "1":
+        sample = []
+        for watch in watches:
+            items = search(key, watch)[:3]
+            print(f"[test] {watch['keyword']}: {len(items)} sample items")
+            if items:
+                sample.append((watch, items))
+        send_email("[メルカリ] 테스트 메일 - 알림 설정 확인", render_email(sample) if sample else "<p>테스트 메일입니다. (현재 검색 결과 없음)</p>")
+        print("[mail] test email sent")
+        return 0
+
     found, failures, alerted = [], 0, set()
     for watch in watches:
         state_key = json.dumps([watch["keyword"], watch.get("exclude", ""),

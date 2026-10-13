@@ -17,6 +17,7 @@ import base64
 import html
 import json
 import os
+import re
 import smtplib
 import sys
 import time
@@ -124,6 +125,23 @@ def search(key, watch: dict) -> list:
         return json.load(resp).get("items", [])
 
 
+def title_matches(name: str, words: list) -> bool:
+    """True if the title contains any of the words (case-insensitive).
+
+    Latin words must stand alone ("ti" matches "Sol Ti" / "SOL-TI" but not "edition");
+    Japanese words match anywhere in the title.
+    """
+    if not words:
+        return True
+    for w in words:
+        if w.isascii():
+            if re.search(rf"(?<![a-z]){re.escape(w.lower())}(?![a-z])", name.lower()):
+                return True
+        elif w in name:
+            return True
+    return False
+
+
 def item_url(item: dict) -> str:
     if item.get("itemType") == "ITEM_TYPE_BEYOND":
         return f"https://jp.mercari.com/shops/product/{item['id']}"
@@ -187,7 +205,8 @@ def main() -> int:
             continue
         seen_set = set(seen)
         # Skip items another watch already reported in this run (overlapping keywords).
-        new = [it for it in items if it["id"] not in seen_set and it["id"] not in alerted]
+        new = [it for it in items if it["id"] not in seen_set and it["id"] not in alerted
+               and title_matches(it.get("name", ""), watch.get("title_any", []))]
         alerted.update(it["id"] for it in new)
         print(f"[ok] {watch['keyword']}: {len(items)} fetched, {len(new)} new")
         if new:

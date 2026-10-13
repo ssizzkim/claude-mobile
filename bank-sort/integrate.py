@@ -87,7 +87,25 @@ def name_match(q,inv):
         if len(c)>=2 and len(sup)>=2 and (sup.startswith(c) or c.startswith(sup) or (len(c)>=3 and c in sup)): return True
         if rep and len(rep)>=2 and c.startswith(rep) and t and rep in nm(t["수취인"]): return True
     return False
-QX=QM+QT   # 계산서 매칭 대상: 통합내역 + 세금·공과금
+# 오송금 반환 (2026-10-13 추가): 잘못 보낸 출금과, 7일 안에 같은 사람에게서 같은 금액으로 돌려받은 입금을 한 쌍으로 묶는다.
+# 둘 다 계산서와 맞출 거래가 아니므로 매칭에서 빼고 '오송금 반환'으로 표시한다.
+def refund_names(q):
+    t=q.get("T"); return [x for x in (nm(q["내용"]), nm(t["수취인"]) if t else "") if len(x)>=2]
+for qi in QI:
+    a=nm(qi["내용"])
+    if len(a)<2 or qi["적요"]=="신한체": continue
+    best=None
+    for qo in QM:
+        if qo["출금"]<=0 or "refund" in qo: continue
+        d=(qi["t"]-qo["t"]).total_seconds()
+        if not (0<d<=7*86400) or qi["입금"] not in (amt_of(qo), qo["출금"]): continue
+        if any(x.startswith(a[:3]) or a.startswith(x[:3]) for x in refund_names(qo)) and (best is None or d<best[0]):
+            best=(d,qo)
+    if best:
+        qo=best[1]; qo["refund"]=qi; qi["refund"]=qo
+        qo["invtype"]=f'오송금 반환 ({qi["t"]:%m-%d %H:%M} 입금)'; qi["sinvtype"]=f'오송금 반환 ({qo["t"]:%m-%d %H:%M} 출금)'
+print("오송금 반환",sum(1 for q in QI if "refund" in q))
+QX=[q for q in QM+QT if "refund" not in q]   # 계산서 매칭 대상: 통합내역 + 세금·공과금
 def pass_date(need_name,label="날짜+금액 일치"):
     for q in QX:
         if q["출금"]<=0 or "inv" in q: continue
@@ -182,7 +200,7 @@ for neg in sorted([i for i in SINV if i["합계"]<0],key=lambda i:i["d"]):
         pos=max(c,key=lambda i:i["d"]); pos["cancel"]=neg; neg["cancel"]=pos
 for i in SINV:
     if i.get("cancel"): i["bank"]="X"
-QIx=[q for q in QI]
+QIx=[q for q in QI if "refund" not in q]
 for need_name in (True,):
     for q in QIx:
         if "sinv" in q: continue
@@ -281,7 +299,9 @@ datefmt(ws,"B"); datefmt(ws,"V")
 style(ws,[6,11,9,6,8,13,13,14,22,9,22,10,17,13,8,24,14,16,12,24,13,11,28,14],[6,7,8,14,15,21],"C2")
 for row in ws.iter_rows(min_row=2):
     mt=row[23].value
-    if row[3].value=="입금":
+    if str(mt or "").startswith("오송금"):
+        for c in row: c.fill=gfill; c.font=gfont
+    elif row[3].value=="입금":
         for c in row: c.fill=fill
     elif mt=="분할 일치":
         for c in row: c.fill=yfill; c.font=yfont
@@ -311,7 +331,9 @@ for i,q in enumerate(QI,1):
 datefmt(wd,"B"); datefmt(wd,"K"); style(wd,[6,11,9,8,15,14,24,9,24,14,11,14],[5,6,10],"C2")
 for row in wd.iter_rows(min_row=2):
     mt=row[11].value
-    if mt=="분할 일치":
+    if str(mt or "").startswith("오송금"):
+        for c in row: c.fill=gfill; c.font=gfont
+    elif mt=="분할 일치":
         for c in row: c.fill=yfill; c.font=yfont
     elif mt=="합산 일치":
         for c in row: c.fill=bfill; c.font=bfont

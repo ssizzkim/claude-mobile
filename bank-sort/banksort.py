@@ -710,6 +710,7 @@ def daily_reason(q, names):
 
 
 def category(q, names=frozenset()):
+    if "refund" in q: return "오송금 반환", None
     if q.get("tax"): return "세금·공과금", q["tax"]
     if q.get("pay"): return "급여(김한승)", None
     if q.get("loan"): return "가수금(김한승)", None
@@ -768,7 +769,9 @@ def report_sheet(wb, g, new_q, new_inv, summary, names):
         ws.cell(r, 1).number_format = "yyyy-mm-dd hh:mm"; ws.cell(r, 12).number_format = "yyyy-mm-dd"
         for c in (2, 3, 11):
             ws.cell(r, c).number_format = "#,##0"
-        if mt:
+        if sheet == "오송금 반환":
+            fill, font = GRAY, GRAY_F
+        elif mt:
             fill, font = GREEN, GREEN_F
         elif needs_invoice(sheet, q):
             fill, font = PINK, PINK_F
@@ -918,8 +921,11 @@ def run(paths):
             if not mt and needs_invoice(sheet, q):
                 unmatched_new += 1
     lines.append(f"새 은행 거래 중 계산서 미매칭(분홍) {unmatched_new}건")
-    report_sheet(new_wb, g, new_q, buy_new + sell_new, lines, names)
-    final = merge_into_existing(new_wb, out_path, generated + [REPORT_SHEET], always_new={REPORT_SHEET})
+    if paths:
+        report_sheet(new_wb, g, new_q, buy_new + sell_new, lines, names)
+        generated.append(REPORT_SHEET)
+    # 파일 없이 다시 정리할 때는 지난번 「이번 정리」 시트를 그대로 둔다
+    final = merge_into_existing(new_wb, out_path, generated, always_new={REPORT_SHEET})
     if REPORT_SHEET in final.sheetnames:
         final.active = final.sheetnames.index(REPORT_SHEET)
         for w in final.worksheets:

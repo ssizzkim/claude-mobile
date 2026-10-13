@@ -7,7 +7,7 @@
   은행(codef): CODEF API(https://codef.io)가 공동인증서로 신한은행 기업뱅킹에 로그인해
         법인 수시입출 계좌의 거래내역을 돌려준다.
   은행(files): 직접 내려받아 둔 거래내역 엑셀 파일을 읽는다.
-  이체(출금) 내역은 거래내역에서 출금 건을 뽑는다.
+  출금내역은 거래내역에서 출금 건을 뽑고, 이체결과조회 엑셀(화면 반자동·파일)은 별도 시트로 옮긴다.
   홈택스: 오픈소스 `hometax` CLI(https://github.com/hjsh200219/hometax)가 공동인증서로
         홈택스에 로그인해 전자세금계산서 매출(발급)·매입(수취) 목록을 돌려준다.
 
@@ -34,6 +34,7 @@ import base64
 import getpass
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -354,7 +355,8 @@ class Sheet:
 
 
 def build_workbook(path: Path, start: date, end: date, bank: list[dict] | None,
-                   invoices: dict[str, list[dict]] | None, warnings: list[str]) -> None:
+                   invoices: dict[str, list[dict]] | None, warnings: list[str],
+                   transfers: tuple[list[str], list[list]] | None = None) -> None:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
@@ -380,11 +382,18 @@ def build_workbook(path: Path, start: date, end: date, bank: list[dict] | None,
                            ["구분", "건수", "금액1", "금액2"]]  # fmt: skip
     if bank is not None:
         bank_sorted = sorted(bank, key=lambda r: (r["date"], r["time"]), reverse=True)
-        transfers = [r for r in bank_sorted if r["out"] > 0]
+        outgoing = [r for r in bank_sorted if r["out"] > 0]
         sheets.append(Sheet("계좌거래내역", bank_headers, [bank_row(r) for r in bank_sorted], (4, 5, 6)))
-        sheets.append(Sheet("이체(출금)내역", bank_headers, [bank_row(r) for r in transfers], (4, 5, 6)))
+        sheets.append(Sheet("출금내역", bank_headers, [bank_row(r) for r in outgoing], (4, 5, 6)))
         summary.append(["계좌 입금", sum(1 for r in bank if r["in"] > 0), sum(r["in"] for r in bank), ""])
-        summary.append(["계좌 출금(이체)", len(transfers), sum(r["out"] for r in transfers), ""])
+        summary.append(["계좌 출금", len(outgoing), sum(r["out"] for r in outgoing), ""])
+    if transfers is not None:
+        headers, rows = transfers
+        money = tuple(i + 1 for i, h in enumerate(headers) if re.search(r"금액|수수료|잔액", h))
+        sheets.append(Sheet("이체결과(은행)", headers, rows, money))
+        amount_col = next((i for i, h in enumerate(headers) if "금액" in h), None)
+        total = sum(r[amount_col] for r in rows if amount_col is not None and isinstance(r[amount_col], int))
+        summary.append(["이체결과(은행 조회)", len(rows), total if amount_col is not None else "", ""])
     if invoices is not None:
         for key, title, who in (("sales", "세금계산서_발급(매출)", "공급받는자"),
                                 ("purchases", "세금계산서_수취(매입)", "공급자")):  # fmt: skip
@@ -474,28 +483,66 @@ def demo_data(start: date, end: date):
 
 
 def default_output(start: date, end: date) -> Path:
-    out_dir = Path(env("OUTPUT_DIR") or data_dir() / "output").expanduser()
-    return out_dir / f"거래_세금계산서_{start:%Y%m%d}-{end:%Y%m%d}.xlsx"
+    return output_dir() / f"거래_세금계산서_{start:%Y%m%d}-{end:%Y%m%d}.xlsx"
 
 
-def fetch_bank_browser(start: date, end: date, log, done=None) -> tuple[list[dict], list[str]]:
-    """CODEF 없이: 크롬 화면 반자동으로 엑셀을 받아 읽는다."""
+LOCALIZED_FOLDERS = {"데스크탑": "Desktop", "바탕화면": "Desktop", "데스크톱": "Desktop",
+                     "문서": "Documents", "다운로드": "Downloads"}
+
+
+def normalize_folder(text: str | Path) -> Path:
+    """'~/데스크탑' 처럼 Finder 에 보이는 한글 이름으로 적어도 실제 폴더(~/Desktop)를 쓰게 한다."""
+    path = Path(str(text).strip()).expanduser()
+    home = Path.home()
+    try:
+        relative = path.relative_to(home)
+    except ValueError:
+        return path
+    parts = list(relative.parts)
+    if parts and parts[0] in LOCALIZED_FOLDERS:
+        parts[0] = LOCALIZED_FOLDERS[parts[0]]
+    return home.joinpath(*parts)
+
+
+def output_dir() -> Path:
+    return normalize_folder(env("OUTPUT_DIR") or data_dir() / "output")
+
+
+def read_bank_files(start: date, end: date, transaction_files, transfer_files):
+    """(거래 행, 경고, 이체결과 표 또는 None)"""
     import bank_excel
+
+    rows, warnings = bank_excel.parse_files(transaction_files, start, end)
+    transfers = None
+    if transfer_files:
+        headers, body, more = bank_excel.parse_tables(transfer_files, start, end)
+        warnings += more
+        if headers:
+            transfers = (headers, body)
+    return rows, warnings, transfers
+
+
+def fetch_bank_browser(start: date, end: date, log, done=None):
+    """CODEF 없이: 크롬 화면 반자동으로 거래내역·이체결과 엑셀을 받아 읽는다."""
     import shinhan_browser
 
     try:
-        files = shinhan_browser.download_statements(start, end, data_dir(), log=log, done=done)
+        files = shinhan_browser.download_statements(
+            start, end, data_dir(), log=log, done=done, save_dir=output_dir() / "은행원본")
     except shinhan_browser.StepFailed as error:
         raise AppError(str(error)) from None
-    return bank_excel.parse_files(files, start, end)
+    if not files.get("transactions") and not files.get("transfers"):
+        raise AppError("은행에서 받은 파일이 없습니다.")
+    return read_bank_files(start, end, files.get("transactions", []), files.get("transfers", []))
 
 
-def fetch_bank_files(start: date, end: date, files) -> tuple[list[dict], list[str]]:
+def fetch_bank_files(start: date, end: date, files):
     import bank_excel
 
     if not files:
         raise AppError("은행 거래내역 파일을 고르세요.")
-    return bank_excel.parse_files(files, start, end)
+    transactions, others = bank_excel.classify(files)
+    return read_bank_files(start, end, transactions, others)
 
 
 def run(start: date, end: date, *, cert_dir: Path | None = None, password: str = "",
@@ -508,7 +555,7 @@ def run(start: date, end: date, *, cert_dir: Path | None = None, password: str =
     out = out or default_output(start, end)
     log(f"조회 기간: {start} ~ {end}")
     warnings: list[str] = []
-    bank = invoices = None
+    bank = invoices = transfers = None
     if demo:
         bank, invoices = demo_data(start, end)
         warnings.append("데모 데이터입니다(실제 조회 아님).")
@@ -524,11 +571,11 @@ def run(start: date, end: date, *, cert_dir: Path | None = None, password: str =
                 if bank_mode == "codef":
                     bank, bank_warnings = fetch_bank(start, end, cert_dir, password)
                 elif bank_mode == "files":
-                    bank, bank_warnings = fetch_bank_files(start, end, bank_files)
+                    bank, bank_warnings, transfers = fetch_bank_files(start, end, bank_files)
                 else:
-                    bank, bank_warnings = fetch_bank_browser(start, end, log, bank_done)
+                    bank, bank_warnings, transfers = fetch_bank_browser(start, end, log, bank_done)
                 warnings += bank_warnings
-                log(f"  거래 {len(bank)}건")
+                log(f"  거래 {len(bank)}건" + (f", 이체결과 {len(transfers[1])}건" if transfers else ""))
             except Exception as error:  # 네트워크 오류 등도 한쪽 실패로 처리
                 warnings.append(f"신한은행 조회 실패: {error}")
                 log(f"  실패: {error}")
@@ -540,9 +587,16 @@ def run(start: date, end: date, *, cert_dir: Path | None = None, password: str =
             except Exception as error:
                 warnings.append(f"홈택스 조회 실패: {error}")
                 log(f"  실패: {error}")
-        if bank is None and invoices is None:
+        if bank is None and invoices is None and transfers is None:
             raise AppError("조회에 모두 실패했습니다.\n" + "\n".join(warnings))
-    build_workbook(out, start, end, bank, invoices, warnings)
+    try:
+        build_workbook(out, start, end, bank, invoices, warnings, transfers)
+    except PermissionError:
+        raise AppError(
+            f"{out.parent} 에 저장할 권한이 없습니다.\n"
+            "시스템 설정 → 개인정보 보호 및 보안 → 파일 및 폴더에서 이 앱의 데스크탑/문서 접근을 켜거나, "
+            "다른 저장 폴더를 고르세요."
+        ) from None
     log(f"엑셀 저장: {out}")
     return out, warnings
 

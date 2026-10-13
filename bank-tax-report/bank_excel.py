@@ -198,3 +198,68 @@ def parse_files(paths, start: date | None = None, end: date | None = None) -> tu
         except Exception as error:
             warnings.append(f"은행 파일 {Path(path).name} 을(를) 읽지 못했습니다: {error}")
     return rows, warnings
+
+
+# ------------------------------------------------------------------ 이체결과 등 일반 표
+
+TABLE_KEYS = ["이체일", "이체일자", "이체일시", "처리일시", "거래일시", "신청일", "이체금액", "금액",
+              "받는분", "수취인", "입금계좌", "입금은행", "처리결과", "결과", "수수료", "출금계좌", "상태"]
+
+
+def parse_table(path: Path, start: date | None = None, end: date | None = None) -> tuple[list[str], list[list]]:
+    """머리글 행을 찾아 표를 그대로 옮긴다(이체결과조회처럼 양식을 모르는 파일용).
+
+    금액 열은 숫자로 바꾸고, 날짜 열이 있으면 기간 밖 행을 뺀다."""
+    rows = read_table(path)
+    header_index = None
+    for index, row in enumerate(rows[:60]):
+        hits = sum(1 for cell in row if cell and any(_norm(k) in _norm(cell) for k in TABLE_KEYS))
+        if hits >= 3:
+            header_index = index
+            break
+    if header_index is None:
+        raise ParseError("이체결과 표의 머리글(이체일·금액·받는분 등)을 찾지 못했습니다.")
+    headers = [c or f"열{i + 1}" for i, c in enumerate(rows[header_index])]
+    while headers and headers[-1].startswith("열"):
+        headers.pop()
+    width = len(headers)
+    date_col = next((i for i, h in enumerate(headers) if re.search(r"일자|일시|이체일|처리일|신청일", h)), None)
+    money_cols = {i for i, h in enumerate(headers) if re.search(r"금액|수수료|잔액", h)}
+    body = []
+    for row in rows[header_index + 1:]:
+        cells = (row + [""] * width)[:width]
+        if sum(1 for c in cells if c) < 2 or _norm(cells[0]).startswith(("합계", "총계", "소계")):
+            continue
+        if date_col is not None and start and end:
+            ymd, _ = _date_time(cells[date_col], "")
+            if ymd and not (start.strftime("%Y%m%d") <= ymd <= end.strftime("%Y%m%d")):
+                continue
+        body.append([_amount(c) if i in money_cols and re.fullmatch(r"[\d,\s-]+원?", c or "") else c
+                     for i, c in enumerate(cells)])  # fmt: skip
+    return headers, body
+
+
+def parse_tables(paths, start: date | None = None, end: date | None = None):
+    """여러 파일을 한 표로. 머리글이 다르면 첫 파일 기준. (headers, rows, warnings)"""
+    headers, rows, warnings = None, [], []
+    for path in paths:
+        try:
+            h, body = parse_table(Path(path), start, end)
+        except Exception as error:
+            warnings.append(f"이체결과 파일 {Path(path).name} 을(를) 읽지 못했습니다: {error}")
+            continue
+        headers = headers or h
+        rows += body
+    return headers, rows, warnings
+
+
+def classify(paths) -> tuple[list[Path], list[Path]]:
+    """직접 고른 파일을 거래내역 / 이체결과로 나눈다."""
+    transactions, others = [], []
+    for path in map(Path, paths):
+        try:
+            find_header(read_table(path))
+            transactions.append(path)
+        except Exception:
+            others.append(path)
+    return transactions, others

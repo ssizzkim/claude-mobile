@@ -174,8 +174,13 @@ class App:
         self.open_button = ttk.Button(buttons, text="엑셀 열기", command=self.open_output, state="disabled")
         self.open_button.pack(side="right")
         self.bank_done = threading.Event()
-        self.done_button = ttk.Button(buttons, text="은행 엑셀 받기 완료", command=self.bank_done.set, state="disabled")
+        self.done_button = ttk.Button(buttons, text="다음 ▶", command=self.bank_done.set, state="disabled")
         self.done_button.pack(side="right", padx=8)
+        row += 1
+        extra = ttk.Frame(frame)
+        extra.grid(row=row, column=0, columnspan=3, sticky="ew", pady=(0, 10))
+        ttk.Button(extra, text="저장 폴더 열기", command=self.open_folder).pack(side="left")
+        ttk.Button(extra, text="클릭 순서 다시 배우기", command=self.forget_clicks).pack(side="left", padx=8)
         row += 1
 
         # 진행 로그
@@ -185,7 +190,8 @@ class App:
 
         self.refresh_certs()
         self.write("공동인증서와 비밀번호(홈택스용)를 넣고 [조회하고 엑셀 저장]을 누르세요.")
-        self.write("신한은행은 크롬 창이 열리면 직접 로그인만 하면 됩니다(처음엔 보안 프로그램 설치 안내가 나올 수 있음).")
+        self.write("신한은행은 크롬 창이 열리면 직접 로그인하세요.")
+        self.write("처음 한 번은 거래내역조회·이체결과조회를 직접 눌러 엑셀을 받으면, 앱이 순서를 기억해 다음부터 자동으로 합니다.")
         root.after(100, self.drain)
 
     # -- 입력 도우미
@@ -302,7 +308,9 @@ class App:
         # report.py 가 읽는 환경 변수로 설정 전달
         for key in SETTING_KEYS:
             os.environ[key] = self.settings.get(key, "")
-        os.environ["OUTPUT_DIR"] = self.output_var.get().strip() or str(DEFAULT_OUTPUT)
+        folder = report.normalize_folder(self.output_var.get().strip() or DEFAULT_OUTPUT)
+        self.output_var.set(str(folder))
+        os.environ["OUTPUT_DIR"] = str(folder)
         if cert_dir:
             self.settings["CERT_DIR"] = str(cert_dir)
         self.settings["OUTPUT_DIR"] = os.environ["OUTPUT_DIR"]
@@ -349,6 +357,18 @@ class App:
         if warnings and not self.demo:
             messagebox.showwarning(APP_NAME, "엑셀을 저장했지만 일부 조회에 문제가 있었습니다.\n\n" + "\n".join(warnings))
         self.open_output()
+
+    def open_folder(self):
+        folder = report.normalize_folder(self.output_var.get().strip() or DEFAULT_OUTPUT)
+        folder.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["open", str(folder)], check=False)
+
+    def forget_clicks(self):
+        if messagebox.askyesno(APP_NAME, "기억한 신한은행 클릭 순서를 지울까요?\n다음 조회 때 한 번 더 직접 보여 주시면 됩니다."):
+            import shinhan_browser
+
+            shinhan_browser.forget_recipes(Path(os.environ["BTR_HOME"]))
+            self.write("기억한 클릭 순서를 지웠습니다.")
 
     def open_output(self):
         if self.last_output and self.last_output.exists():

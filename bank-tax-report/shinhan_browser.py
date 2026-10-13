@@ -1,17 +1,16 @@
-"""신한은행 기업뱅킹 화면 반자동 조회 (CODEF 없이).
+"""신한은행 기업뱅킹 화면 반자동 조회 (CODEF 없이) — "한 번 보여주면 기억".
 
 1. 이 앱 전용 크롬 창으로 신한 기업뱅킹을 연다(실제 크롬, 원격 디버깅 포트로 연결).
 2. 로그인은 사람이 직접 한다(공동인증서 비밀번호는 앱이 다루지 않는다).
-3. 로그인되면 화면 글자를 보고 조회 → 거래내역조회 → 기간 → 조회 → 엑셀저장을 누른다.
-4. 자동 클릭이 실패하면 그 창에서 사람이 엑셀을 내려받으면 된다. 받은 파일을 감지해 이어서 진행한다.
-   실패한 화면의 메뉴 글자·스크린샷은 debug 폴더에 남긴다(다음 버전에서 고칠 수 있도록).
-
-메뉴 이름이 다르면 CLICK_STEPS 의 후보 글자만 고치면 된다.
+3. 받을 자료(거래내역조회, 이체결과조회)마다:
+   - 기억한 클릭 순서가 있으면 그대로 다시 누르고, '조회' 직전에 기간을 넣고, 엑셀을 받는다.
+   - 없거나 실패하면 사람이 크롬에서 직접 메뉴 → 조회 → 엑셀저장을 한다. 앱은 그 클릭을 기록해
+     recipes.json 에 저장하고, 다음부터는 자동으로 한다.
+4. 받은 파일은 자료별로 돌려준다.
 """
 
 import json
 import os
-import re
 import shutil
 import socket
 import subprocess
@@ -19,21 +18,21 @@ import sys
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 SHINHAN_URL = os.environ.get("SHINHAN_URL", "https://bizbank.shinhan.com/")
 DEBUG_PORT = int(os.environ.get("BTR_CHROME_PORT", "9333"))
 LOGIN_TIMEOUT = 10 * 60
-MANUAL_TIMEOUT = 15 * 60
+TEACH_TIMEOUT = 15 * 60
 EXCEL_SUFFIXES = (".xls", ".xlsx", ".csv", ".htm", ".html")
 
-# 순서대로 누를 메뉴. 각 단계는 후보 글자 중 화면에 보이는 첫 번째를 누른다.
-MENU_STEPS = [
-    ("조회 메뉴", ["조회"], True),  # (설명, 후보, 없으면 건너뛰어도 되는지)
-    ("거래내역조회 메뉴", ["거래내역조회", "입출금거래내역조회", "거래내역 조회", "입출금내역조회"], False),
+# 받을 자료: (키, 화면에서 찾을 메뉴 이름 — 사람에게 안내용)
+REPORTS = [
+    ("transactions", "거래내역조회"),
+    ("transfers", "이체결과조회"),
 ]
 WEEK_BUTTONS = ["1주일", "1주", "일주일", "7일"]
-SEARCH_BUTTONS = ["조회", "조회하기"]
-EXCEL_BUTTONS = ["엑셀저장", "엑셀 저장", "엑셀다운로드", "엑셀 다운로드", "엑셀파일저장", "Excel", "엑셀"]
+SEARCH_BUTTONS = ["조회", "조회하기", "검색"]
 LOGGED_IN_MARKERS = ["로그아웃", "LOGOUT", "Logout"]
 
 
@@ -66,7 +65,7 @@ def port_open(port: int) -> bool:
         return sock.connect_ex(("127.0.0.1", port)) == 0
 
 
-def launch_chrome(profile: Path, log) -> None:
+def launch_chrome(profile: Path) -> None:
     if port_open(DEBUG_PORT):
         return  # 이전에 연 앱 전용 크롬이 아직 떠 있음
     profile.mkdir(parents=True, exist_ok=True)
@@ -88,11 +87,11 @@ def launch_chrome(profile: Path, log) -> None:
     raise StepFailed("크롬을 띄우지 못했습니다. 크롬을 모두 닫고 다시 시도하세요.")
 
 
-# ------------------------------------------------------------------ 화면 조작
+# ------------------------------------------------------------------ 화면 찾기
 
 
 def frames(context):
-    """최근에 열린 창(팝업)부터, 안쪽 프레임(본문)부터. 위쪽 메뉴의 같은 글자보다 본문 버튼을 먼저 누르려고."""
+    """최근에 열린 창(팝업)부터, 안쪽 프레임(본문)부터."""
     for page in reversed(context.pages):
         if page.is_closed():
             continue
@@ -100,49 +99,35 @@ def frames(context):
             yield page, frame
 
 
-def visible_locators(frame, text: str, exact: bool = True):
-    for locator in (
-        frame.get_by_role("button", name=text, exact=exact),
-        frame.get_by_role("link", name=text, exact=exact),
-        frame.locator(f'input[type=button][value="{text}"], input[type=submit][value="{text}"]'),
-        frame.get_by_text(text, exact=exact),
-    ):
+def visible(locator, limit: int = 20):
+    try:
+        count = min(locator.count(), limit)
+    except Exception:
+        return
+    for index in range(count):
+        item = locator.nth(index)
         try:
-            count = min(locator.count(), 20)
+            if item.is_visible():
+                yield item
         except Exception:
             continue
-        for index in range(count):
-            item = locator.nth(index)
-            try:
-                if item.is_visible():
-                    yield item
-            except Exception:
-                continue
 
 
-def click_text(context, candidates: list[str], timeout: float, log, label: str) -> str:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        for exact in (True, False):
-            for _, frame in frames(context):
-                for text in candidates:
-                    if not exact and len(text) < 4:  # '조회' 같은 짧은 글자는 정확히 같을 때만
-                        continue
-                    for item in visible_locators(frame, text, exact):
-                        try:
-                            item.click(timeout=3000)
-                            log(f"  · {label}: '{text}' 클릭")
-                            return text
-                        except Exception:
-                            continue
-        time.sleep(0.7)
-    raise StepFailed(f"{label}({' / '.join(candidates)})을(를) 화면에서 찾지 못했습니다.")
+def by_text(frame, text: str):
+    quoted = text.replace('"', '\\"')
+    for locator in (
+        frame.get_by_role("button", name=text, exact=True),
+        frame.get_by_role("link", name=text, exact=True),
+        frame.locator(f'input[type=button][value="{quoted}"], input[type=submit][value="{quoted}"]'),
+        frame.get_by_text(text, exact=True),
+    ):
+        yield from visible(locator)
 
 
 def logged_in(context) -> bool:
     for _, frame in frames(context):
         for marker in LOGGED_IN_MARKERS:
-            for _ in visible_locators(frame, marker):
+            for _ in by_text(frame, marker):
                 return True
     return False
 
@@ -165,23 +150,113 @@ DATE_JS = """
 """
 
 
-def set_period(context, start: date, end: date, log) -> None:
-    if (end - start).days == 6 and end == date.today():
-        try:
-            click_text(context, WEEK_BUTTONS, 3, log, "기간 1주일")
-        except StepFailed:
-            pass
+def set_period(context, start: date, end: date, log, quiet: bool = False) -> bool:
     for _, frame in frames(context):
         try:
             if frame.evaluate(DATE_JS, [start.isoformat(), end.isoformat()]):
                 log(f"  · 조회기간 {start} ~ {end} 입력")
-                return
+                return True
         except Exception:
             continue
-    log("  · 날짜 입력칸을 찾지 못해 화면 기본 기간으로 조회합니다(나중에 기간으로 걸러냄).")
+    if not quiet:
+        log("  · 날짜 입력칸을 찾지 못해 화면에 있는 기간으로 조회합니다(나중에 기간으로 걸러냄).")
+    return False
 
 
-def new_files(folder: Path) -> dict[str, int]:
+# ------------------------------------------------------------------ 클릭 기록·재생
+
+RECORDER_JS = r"""
+(() => {
+  if (window.__btrRecorder) return;
+  window.__btrRecorder = true;
+  const label = el => {
+    const raw = (el.tagName === 'INPUT') ? (el.value || el.title || '') :
+      (el.innerText || el.alt || el.title || el.getAttribute('aria-label') || '');
+    return raw.trim().replace(/\s+/g, ' ');
+  };
+  const send = step => { try { window.__btrRecord && window.__btrRecord(step); } catch (e) {} };
+  document.addEventListener('click', e => {
+    let el = e.target.closest('a,button,input,[onclick],[role=button],[role=tab],label,li') || e.target;
+    if (el.tagName === 'SELECT') return;
+    if (el.tagName === 'INPUT' && !['button', 'submit', 'image', 'radio', 'checkbox'].includes(el.type)) return;
+    let text = label(el);
+    if (text.length > 40) { el = e.target; text = label(el); }
+    if (text.length > 40) text = '';
+    if (!text && !el.id) return;
+    send({kind: 'click', text, id: el.id || '', tag: el.tagName, frame: location.pathname});
+  }, true);
+  document.addEventListener('change', e => {
+    const el = e.target;
+    if (el.tagName !== 'SELECT') return;
+    send({kind: 'select', id: el.id || '', name: el.name || '', value: el.value,
+          text: (el.selectedOptions[0] || {}).text || '', frame: location.pathname});
+  }, true);
+})();
+"""
+
+
+def clean_steps(steps: list[dict]) -> list[dict]:
+    """달력 날짜 클릭, 바로 반복된 클릭을 뺀다."""
+    result = []
+    for step in steps:
+        text = step.get("text", "")
+        if step["kind"] == "click" and text.isdigit() and len(text) <= 2 and not step.get("id"):
+            continue  # 달력의 날짜(기간은 재생 때 따로 넣는다)
+        if result and result[-1] == step:
+            continue
+        result.append(step)
+    return result
+
+
+def find_step(context, step):
+    """기록한 단계에 해당하는 화면 요소(같은 프레임 경로 우선)."""
+    ordered = sorted(frames(context), key=lambda pf: urlparse(pf[1].url).path != step.get("frame"))
+    for _, frame in ordered:
+        if step["kind"] == "select":
+            attr = f'select[id="{step["id"]}"]' if step.get("id") else f'select[name="{step.get("name", "")}"]'
+            for item in visible(frame.locator(attr)):
+                return item
+            continue
+        if step.get("id"):
+            for item in visible(frame.locator(f'[id="{step["id"]}"]')):
+                return item
+        if step.get("text"):
+            for item in by_text(frame, step["text"]):
+                return item
+    return None
+
+
+def replay(context, steps, start, end, log, pause) -> None:
+    period_set = False
+    for number, step in enumerate(steps, start=1):
+        is_search = step["kind"] == "click" and step.get("text") in SEARCH_BUTTONS
+        if is_search and not period_set:  # 날짜칸이 실제로 채워질 때까지 '조회' 때마다 시도
+            pause(1)
+            period_set = set_period(context, start, end, log, quiet=True)
+        deadline = time.time() + 15
+        item = None
+        while item is None and time.time() < deadline:
+            item = find_step(context, step)
+            if item is None:
+                pause(0.7)
+        name = step.get("text") or step.get("id")
+        if item is None:
+            raise StepFailed(f"{number}번째 클릭('{name}')을 화면에서 찾지 못했습니다.")
+        try:
+            if step["kind"] == "select":
+                item.select_option(value=step["value"], timeout=5000)
+            else:
+                item.click(timeout=5000)
+        except Exception as error:
+            raise StepFailed(f"{number}번째 클릭('{name}') 실패: {error}") from None
+        log(f"  · {number}/{len(steps)} '{name}'")
+        pause(1.5 if not is_search else 3)
+
+
+# ------------------------------------------------------------------ 다운로드 감지
+
+
+def finished_files(folder: Path) -> dict[str, int]:
     """다 받아진(크기가 0이 아닌) 엑셀 파일 이름 → 크기."""
     return {
         p.name: p.stat().st_size for p in folder.iterdir()
@@ -189,28 +264,43 @@ def new_files(folder: Path) -> dict[str, int]:
     }  # fmt: skip
 
 
-def wait_for_files(folder: Path, timeout: float, idle, done=None) -> list[Path]:
-    """새 엑셀 파일을 기다린다. done(이벤트)이 오면 그때까지 받은 것을 돌려준다.
+USER_DOWNLOADS = Path.home() / "Downloads"
 
-    idle(): 기다리는 동안 브라우저 이벤트(다운로드)를 처리하게 하는 함수."""
+
+def adopt_stray_downloads(folder: Path, since: float) -> None:
+    """크롬이 지정 폴더 대신 ~/Downloads 에 저장했으면 그 새 파일을 지정 폴더로 복사한다."""
+    if not USER_DOWNLOADS.is_dir() or USER_DOWNLOADS == folder:
+        return
+    for path in USER_DOWNLOADS.iterdir():
+        try:
+            if (path.suffix.lower() in EXCEL_SUFFIXES and path.stat().st_mtime >= since
+                    and path.stat().st_size > 0 and not (folder / path.name).exists()):  # fmt: skip
+                shutil.copy2(path, folder / path.name)
+        except OSError:
+            continue
+
+
+def wait_for_files(folder: Path, timeout: float, idle, done=None, since: float | None = None) -> list[Path]:
+    """새 파일이 생기고 3초간 변화가 없으면 돌려준다. done(이벤트)이 오면 그때까지 받은 것."""
     deadline = time.time() + timeout
     found: dict[str, int] = {}
     stable_since = time.time()
     while time.time() < deadline:
-        current = new_files(folder)
+        if since is not None:
+            adopt_stray_downloads(folder, since)
+        current = finished_files(folder)
         if current != found:
             found, stable_since = current, time.time()
-        settled = found and time.time() - stable_since > 3
-        if done is not None and done.is_set() and (settled or not found):
+        if found and time.time() - stable_since > 3:
             break
-        if done is None and settled:
+        if done is not None and done.is_set():
             break
         idle()
     return sorted(folder / name for name in found)
 
 
-def dump_debug(context, folder: Path, log) -> Path | None:
-    """메뉴 글자와 스크린샷 저장 — 이 파일을 보내 주면 메뉴 후보를 고칠 수 있다."""
+def dump_debug(context, folder: Path, log) -> None:
+    """메뉴 글자와 스크린샷 저장 — 문제를 고칠 때 참고용."""
     try:
         folder.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -226,52 +316,93 @@ def dump_debug(context, folder: Path, log) -> Path | None:
             except Exception:
                 texts = []
             info.append({"page": page.url, "frame": frame.url, "texts": sorted(set(texts))})
-        path = folder / f"shinhan-{stamp}.json"
-        path.write_text(json.dumps(info, ensure_ascii=False, indent=1), encoding="utf-8")
+        (folder / f"shinhan-{stamp}.json").write_text(json.dumps(info, ensure_ascii=False, indent=1), encoding="utf-8")
         for index, page in enumerate(p for p in context.pages if not p.is_closed()):
             try:
                 page.screenshot(path=str(folder / f"shinhan-{stamp}-{index}.png"))
             except Exception:
                 pass
-        log(f"  · 화면 정보를 저장했습니다: {path}")
-        return path
+        log(f"  · 화면 정보를 저장했습니다: {folder}")
     except Exception:
-        return None
+        pass
+
+
+# ------------------------------------------------------------------ 기억한 순서 파일
+
+
+def recipes_path(home: Path) -> Path:
+    return home / "recipes.json"
+
+
+def load_recipes(home: Path) -> dict:
+    try:
+        return json.loads(recipes_path(home).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_recipes(home: Path, recipes: dict) -> None:
+    home.mkdir(parents=True, exist_ok=True)
+    recipes_path(home).write_text(json.dumps(recipes, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def forget_recipes(home: Path) -> None:
+    try:
+        recipes_path(home).unlink()
+    except OSError:
+        pass
 
 
 # ------------------------------------------------------------------ 전체 흐름
 
 
-def download_statements(start: date, end: date, home: Path, log=print, done=None) -> list[Path]:
-    """신한 기업뱅킹에서 거래내역 엑셀을 받아 파일 경로 목록을 돌려준다."""
+def download_statements(start: date, end: date, home: Path, log=print, done=None,
+                        save_dir: Path | None = None) -> dict[str, list[Path]]:
+    """신한 기업뱅킹에서 거래내역·이체결과 엑셀을 받아 {자료: [파일]} 로 돌려준다.
+
+    done: 사람이 앱에서 [다음 ▶]을 누르면 set 되는 threading.Event (로그인 완료 / 이 자료 건너뛰기).
+    save_dir: 은행 원본 파일을 둘 폴더(기본: home/downloads). 그 아래 조회시각/자료별 폴더가 생긴다."""
     from playwright.sync_api import sync_playwright
 
-    downloads = home / "downloads" / datetime.now().strftime("%Y%m%d-%H%M%S")
-    downloads.mkdir(parents=True, exist_ok=True)
+    run_dir = (save_dir or home / "downloads") / datetime.now().strftime("%Y%m%d-%H%M%S")
+    recipes = load_recipes(home)
+    result: dict[str, list[Path]] = {}
+
+    def pressed() -> bool:
+        if done is not None and done.is_set():
+            done.clear()
+            return True
+        return False
 
     log("  · 크롬으로 신한 기업뱅킹을 엽니다.")
-    launch_chrome(home / "chrome-profile", log)
+    launch_chrome(home / "chrome-profile")
     with sync_playwright() as pw:
         browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{DEBUG_PORT}")
         context = browser.contexts[0]
-        # 크롬이 내려받는 파일을 이번 조회 폴더로 바로 저장하게 한다
         cdp = browser.new_browser_cdp_session()
+        recorded: list[dict] = []
+        recording = {"on": False}
 
-        def allow_downloads():
-            cdp.send("Browser.setDownloadBehavior",
-                     {"behavior": "allow", "downloadPath": str(downloads), "eventsEnabled": True})  # fmt: skip
+        def record(_source, step):
+            if recording["on"] and isinstance(step, dict):
+                recorded.append(step)
 
-        allow_downloads()
+        context.expose_binding("__btrRecord", record)
+        context.add_init_script(RECORDER_JS)
 
-        def idle():  # 브라우저 이벤트를 처리하며 잠깐 쉰다
-            pages = [p for p in context.pages if not p.is_closed()]
-            if pages:
+        def inject():
+            for _, frame in frames(context):
                 try:
-                    pages[-1].wait_for_timeout(500)
-                    return
+                    frame.evaluate(RECORDER_JS)
                 except Exception:
                     pass
-            time.sleep(0.5)
+
+        def idle():  # 브라우저 이벤트(다운로드·기록)를 처리하며 잠깐 쉰다
+            pages = [p for p in context.pages if not p.is_closed()]
+            try:
+                pages[-1].wait_for_timeout(500)
+            except Exception:
+                time.sleep(0.5)
 
         def pause(seconds):
             end_at = time.time() + seconds
@@ -284,55 +415,84 @@ def download_statements(start: date, end: date, home: Path, log=print, done=None
         for page in context.pages:
             watch(page)
         context.on("page", watch)
-        if not any(SHINHAN_URL.split("/")[2] in p.url for p in context.pages):
-            page = context.new_page()
-            page.goto(SHINHAN_URL)
+        if not any(urlparse(SHINHAN_URL).netloc in p.url for p in context.pages):
+            context.new_page().goto(SHINHAN_URL)
 
-        log("  ▶ 크롬 창에서 공동인증서로 로그인하세요. (로그인되면 자동으로 이어집니다)")
+        log("  ▶ 크롬 창에서 공동인증서로 로그인하세요.")
+        log("    (로그인되면 자동으로 이어집니다. 안 넘어가면 앱의 [다음 ▶]을 누르세요)")
         deadline = time.time() + LOGIN_TIMEOUT
+        last_inject = 0.0
         while not logged_in(context):
+            if pressed():
+                break
             if time.time() > deadline:
                 raise StepFailed("10분 안에 로그인이 확인되지 않았습니다.")
-            if done is not None and done.is_set():
-                break
+            if time.time() - last_inject > 2:  # 기록기를 미리 설치해 로그인 직후 클릭도 놓치지 않게
+                inject()
+                last_inject = time.time()
             idle()
+        inject()
         log("  · 로그인 확인")
 
-        try:
-            for label, candidates, optional in MENU_STEPS:
+        names = {"transactions": "거래내역", "transfers": "이체결과"}
+        for key, menu in REPORTS:
+            folder = run_dir / names.get(key, key)
+            folder.mkdir(parents=True, exist_ok=True)
+            cdp.send("Browser.setDownloadBehavior",
+                     {"behavior": "allow", "downloadPath": str(folder), "eventsEnabled": True})  # fmt: skip
+            files: list[Path] = []
+            began = time.time() - 2
+            steps = recipes.get(key)
+            if steps:
+                log(f"  · {menu}: 기억한 순서({len(steps)}단계)대로 진행합니다.")
                 try:
-                    click_text(context, candidates, 15, log, label)
-                    pause(1.5)
-                except StepFailed:
-                    if not optional:
-                        raise
-            pause(2)
-            set_period(context, start, end, log)
-            click_text(context, SEARCH_BUTTONS, 10, log, "조회 버튼")
-            pause(4)
-            allow_downloads()
-            click_text(context, EXCEL_BUTTONS, 15, log, "엑셀 저장")
-            files = wait_for_files(downloads, 60, idle)
+                    replay(context, steps, start, end, log, pause)
+                    files = wait_for_files(folder, 60, idle, since=began)
+                    if not files:
+                        raise StepFailed("엑셀 파일이 내려받아지지 않았습니다.")
+                except StepFailed as error:
+                    log(f"  · 자동 진행 실패: {error}")
+                    dump_debug(context, home / "debug", log)
+                    log("    화면이 바뀐 것 같습니다. 한 번 더 보여 주시면 새 순서를 기억합니다.")
             if not files:
-                raise StepFailed("엑셀 파일이 내려받아지지 않았습니다.")
-        except StepFailed as error:
-            log(f"  · 자동 진행 실패: {error}")
-            dump_debug(context, home / "debug", log)
-            allow_downloads()
-            log("  ▶ 크롬 창에서 거래내역조회 → 엑셀저장을 직접 해 주세요.")
-            log("    (계좌가 여러 개면 모두 받은 뒤 앱의 [은행 엑셀 받기 완료]를 누르세요)")
-            files = wait_for_files(downloads, MANUAL_TIMEOUT, idle, done)
-            if not files:
-                raise StepFailed("은행 엑셀 파일을 받지 못했습니다.") from None
-        else:
-            if done is not None and not done.is_set():
-                # 자동으로 한 계좌를 받은 뒤, 다른 계좌도 받을 시간을 잠깐 준다
-                log("  · 다른 계좌도 받으려면 지금 크롬에서 더 받은 뒤 [은행 엑셀 받기 완료]를 누르세요.")
-                log("    (30초 안에 더 받지 않으면 그대로 진행합니다)")
-                more = wait_for_files(downloads, 30, idle, done)
-                files = more or files
-    log(f"  · 받은 파일: {', '.join(p.name for p in files)}")
-    return files
+                log(f"  ▶ 크롬에서 직접: [{menu}] 메뉴 → 기간 선택 → 조회 → 엑셀저장")
+                log("    앱이 클릭 순서를 기억해서 다음부터는 자동으로 합니다.")
+                log(f"    ({menu} 자료가 필요 없으면 앱의 [다음 ▶]을 누르세요)")
+                recorded.clear()
+                recording["on"] = True
+                inject()
+                deadline = time.time() + TEACH_TIMEOUT
+                last_inject = time.time()
+                while time.time() < deadline:
+                    adopt_stray_downloads(folder, began)
+                    if finished_files(folder):
+                        files = wait_for_files(folder, 30, idle, since=began)
+                        break
+                    if pressed():
+                        break
+                    if time.time() - last_inject > 2:  # 새로 열린 프레임에도 기록기 설치
+                        inject()
+                        last_inject = time.time()
+                    idle()
+                recording["on"] = False
+                if files:
+                    learned = clean_steps(recorded)
+                    if learned:
+                        recipes[key] = learned
+                        save_recipes(home, recipes)
+                        log(f"  · {menu} 클릭 순서 {len(learned)}단계를 기억했습니다.")
+                else:
+                    log(f"  · {menu}: 받은 파일이 없어 건너뜁니다.")
+            if files:
+                log(f"  · {menu} 파일: {', '.join(p.name for p in files)}")
+            result[key] = files
+        # 앱이 끝난 뒤 그 크롬에서 받는 파일은 원래 다운로드 폴더로
+        try:
+            cdp.send("Browser.setDownloadBehavior", {"behavior": "default"})
+        except Exception:
+            pass
+    log(f"  · 은행 원본 파일 폴더: {run_dir}")
+    return result
 
 
 if __name__ == "__main__":  # 단독 시험: python shinhan_browser.py

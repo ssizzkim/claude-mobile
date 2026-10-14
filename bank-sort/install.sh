@@ -15,7 +15,7 @@ if [ ! -x "$APP/venv/bin/python" ]; then
   "$PY" -m venv "$APP/venv"
 fi
 "$APP/venv/bin/python" -m pip install -q --upgrade pip >/dev/null
-"$APP/venv/bin/python" -m pip install -q "openpyxl==3.1.5" "xlrd==2.0.2" pillow numpy \
+"$APP/venv/bin/python" -m pip install -q "openpyxl==3.1.5" "xlrd==2.0.2" pillow numpy "keyring==25.6.0" \
   "hometax @ https://github.com/hjsh200219/hometax/archive/15aa5d490398bfc42fd3ae3541e8f206ec443a9d.zip"
 
 cp "$HERE/banksort.py" "$HERE/integrate.py" "$HERE/hometax_fetch.py" "$HERE/buttons.py" "$HERE/gmail_routine.py" "$HERE/daily_digest.py" "$HERE/tools_cli.py" "$HERE/icon.png" "$HERE"/tile_*.png "$APP/"

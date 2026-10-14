@@ -21,19 +21,46 @@ def main():
     try:
         if action == "hometax":
             import hometax_fetch
-            # 비밀번호가 비어 있어도 홈택스 로그인 세션이 살아 있으면 그대로 조회된다
+            import keyring
+            KC = ("TORQUE 홈택스", "공동인증서")       # 맥 키체인 항목(서비스, 계정)
+            try:
+                req = json.loads(stdin) if stdin.strip().startswith("{") else {"password": stdin.strip()}
+            except json.JSONDecodeError:
+                req = {"password": stdin.strip()}
+            pw = (req.get("password") or "").strip()
+            used_saved = False
+            if not pw:
+                pw = keyring.get_password(*KC) or ""     # 비어 있으면 키체인에 기억해 둔 비밀번호
+                used_saved = bool(pw)
+            # 비밀번호가 없어도 홈택스 로그인 세션이 살아 있으면 그대로 조회된다
             cdir = hometax_fetch.cert_dir()
             if not cdir:
                 raise RuntimeError("공동인증서를 찾지 못했습니다 (~/Library/Preferences/NPKI).")
             try:
-                paths, counts, (start, end) = hometax_fetch.fetch_last_week(stdin.strip(), cdir, log=lambda t: None)
+                paths, counts, (start, end) = hometax_fetch.fetch_last_week(pw, cdir, log=lambda t: None)
             except Exception as e:
                 if "decryption" in str(e).lower() or "password" in str(e).lower() or "비밀번호" in str(e):
-                    raise RuntimeError("인증서 비밀번호가 맞지 않거나, 로그인이 만료됐습니다. 비밀번호를 넣어 다시 시도하세요.") from None
+                    if used_saved:
+                        keyring.delete_password(*KC)
+                        return {"ok": False, "action": action, "needPassword": True,
+                                "error": "기억해 둔 비밀번호가 맞지 않아 지웠습니다. 비밀번호를 다시 입력하세요."}
+                    return {"ok": False, "action": action, "needPassword": True,
+                            "error": "인증서 비밀번호가 맞지 않거나 로그인이 만료됐습니다. 비밀번호를 다시 입력하세요."}
                 raise
+            remembered = used_saved
+            if pw and not used_saved and req.get("remember", True):
+                keyring.set_password(*KC, pw)
+                remembered = True
             subprocess.run(["open", str(Path(paths[0]).parent)])   # 다운로드 폴더를 띄운다
             return {"ok": True, "action": action, "start": str(start), "end": str(end), "counts": counts,
-                    "files": [str(p) for p in paths]}
+                    "files": [str(p) for p in paths], "remembered": remembered}
+        if action == "forget_hometax":
+            import keyring
+            try:
+                keyring.delete_password("TORQUE 홈택스", "공동인증서")
+            except Exception:
+                pass
+            return {"ok": True, "action": action}
         if action == "gmail":
             import gmail_routine
             return {"ok": True, "action": action, "report": gmail_routine.run(log=lambda t: None)}

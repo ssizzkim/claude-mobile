@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """은행·홈택스 버튼 — 맥 앱 화면.
-[신한은행 기업 열기] 크롬으로 신한 기업뱅킹 첫 화면을 띄운다(로그인은 직접).
+[신한은행 기업 열기] 사파리로 신한 기업뱅킹 첫 화면을 띄운다(로그인은 직접).
 [홈택스 지난 7일 가져오기] 공동인증서 비밀번호로 홈택스 매출·매입 세금계산서를 엑셀로 받는다.
 """
 import json
@@ -44,7 +44,8 @@ def cert_dir():
 
 
 def open_shinhan():
-    for cmd in (["open", "-a", "Google Chrome", SHINHAN_URL], ["open", SHINHAN_URL]):
+    # 신한 기업뱅킹 로그인은 맥 크롬에서 안 되고 사파리에서 된다
+    for cmd in (["open", "-a", "Safari", SHINHAN_URL], ["open", SHINHAN_URL]):
         if subprocess.run(cmd).returncode == 0:
             return
 

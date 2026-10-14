@@ -21,6 +21,6 @@ bash bank-sort/install.sh
 VBA 를 바꿨다면 엑셀 VBA 편집기에서 BankSort 모듈을 지우고 `~/Library/Application Support/BankSort/BankSort.bas` 를 다시 가져오기.
 
 ## 은행·홈택스 버튼 앱 (`/Applications/은행·홈택스.app`)
-- [신한은행 기업 열기] 크롬으로 https://bizbank.shinhan.com/ (로그인·엑셀 받기는 직접)
+- [신한은행 기업 열기] 사파리로 https://bizbank.shinhan.com/ (로그인·엑셀 받기는 직접)
 - 인증서 비밀번호 + [홈택스에서 가져오기] 지난 7일(발급일 기준) 매출·매입 → 다운로드 폴더에 홈택스 목록 양식 .xlsx 2개 (`hometax_fetch.py`, hjsh200219/hometax 사용). 비밀번호는 저장하지 않음
 - 화면: `buttons.py`, 로그: `~/Library/Application Support/BankSort/buttons.log`

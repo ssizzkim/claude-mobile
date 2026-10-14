@@ -70,9 +70,11 @@ def main():
             try:
                 result = daily_digest.run(req.get("projects", []), log=lambda t: None)
             except daily_digest.NeedPermission as e:
+                which = "「전체 디스크 접근」(문자 읽기)" if str(e) == "sms" else "「손쉬운 사용」(카톡 읽기)"
                 return {"ok": False, "action": action, "permission": str(e),
-                        "error": "문자를 읽으려면 「전체 디스크 접근」, 카톡을 읽으려면 「손쉬운 사용」 권한을 "
-                                 "토르크 관리 앱에 허용해야 합니다 (시스템 설정 → 개인정보 보호 및 보안)."}
+                        "error": f"토르크 관리 앱에 {which} 권한이 필요합니다.\n"
+                                 "시스템 설정 → 개인정보 보호 및 보안에서 토르크 관리를 켠 뒤, "
+                                 "토르크 관리를 완전히 껐다가(⌘Q) 다시 열어야 적용됩니다."}
             return {"ok": True, "action": action, **result}
         return {"ok": False, "action": action, "error": f"모르는 기능: {action}"}
     except Exception as e:

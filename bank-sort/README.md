@@ -23,4 +23,4 @@ VBA 를 바꿨다면 엑셀 VBA 편집기에서 BankSort 모듈을 지우고 `~/
 ## 은행·홈택스 버튼 앱 (`/Applications/은행·홈택스.app`)
 - [신한은행 기업 열기] 사파리로 https://bizbank.shinhan.com/ (로그인·엑셀 받기는 직접)
 - 인증서 비밀번호 + [홈택스에서 가져오기] 지난 7일(발급일 기준) 매출·매입 → 다운로드 폴더에 홈택스 목록 양식 .xlsx 2개 (`hometax_fetch.py`, hjsh200219/hometax 사용). 비밀번호는 저장하지 않음
-- 화면: `buttons.py`, 로그: `~/Library/Application Support/BankSort/buttons.log`
+- 화면: `buttons.py` — 기능은 아이콘 타일 가로 한 줄. 새 기능은 `make_tiles.py` 에 아이콘을 더하고 `App.TILES` 끝에 한 줄 추가(오른쪽에 붙음). 로그: `~/Library/Application Support/BankSort/buttons.log`

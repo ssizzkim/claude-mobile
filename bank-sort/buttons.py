@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
-"""은행·홈택스 버튼 — 맥 앱 화면.
-[신한은행 기업 열기] 사파리로 신한 기업뱅킹 첫 화면을 띄운다(로그인은 직접).
-[홈택스 지난 7일 가져오기] 공동인증서 비밀번호로 홈택스 매출·매입 세금계산서를 엑셀로 받는다.
-[♻ 지메일 정리] Claude 가 광고 보관·오래된 메일 정리·업무 라벨·중요 메일 요약을 한다(gmail_routine.py).
+"""은행·홈택스 — 맥 앱 화면. 기능 버튼(타일)을 가로 한 줄로 늘어놓는다.
+새 기능은 make_tiles.py 에 아이콘을 하나 그리고, 아래 App.TILES 끝에 한 줄 더하면 오른쪽에 붙는다.
+
+[신한은행] 사파리로 신한 기업뱅킹 첫 화면을 띄운다(로그인은 직접).
+[홈택스] 공동인증서 비밀번호를 물어 지난 7일 매출·매입 세금계산서를 엑셀로 받는다.
+[지메일 정리] Claude 가 광고 보관·오래된 메일 정리·업무 라벨·중요 메일 요약을 한다(gmail_routine.py).
 """
 import json
 import os
@@ -53,40 +55,75 @@ def open_shinhan():
 
 
 class App:
+    # (아이콘 파일, 이름, 설명, 메서드 이름) — 순서대로 왼쪽부터 가로로 붙는다
+    TILES = [
+        ("tile_bank.png", "신한은행", "사파리로 열기", "shinhan"),
+        ("tile_hometax.png", "홈택스", "지난 7일 계산서", "hometax"),
+        ("tile_gmail.png", "지메일 정리", "광고·라벨·요약", "gmail"),
+    ]
+    TILE_W = 120
+
     def __init__(self, root):
         self.root = root
         root.title("은행·홈택스")
-        root.geometry("460x350")
         root.resizable(False, False)
-
-        top = tk.Frame(root)
-        top.pack(fill="x", padx=18, pady=(14, 0))
-        top.columnconfigure(0, weight=1, uniform="b"); top.columnconfigure(1, weight=1, uniform="b")
-        tk.Button(top, text="신한은행 기업 열기", font=("", 14), height=2, command=open_shinhan).grid(row=0, column=0, sticky="nsew", padx=(0, 6))
-        self.recycle = tk.PhotoImage(file=str(Path(__file__).with_name("recycle.png")))
-        self.gbtn = tk.Button(top, text="  지메일 정리", font=("", 14), image=self.recycle, compound="left",
-                              command=self.gmail)
-        self.gbtn.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
-        tk.Label(top, text="사파리로 첫 화면까지 (로그인은 직접)", fg="#666").grid(row=1, column=0, sticky="w")
-        tk.Label(top, text="광고 보관·라벨·중요 메일 요약", fg="#666").grid(row=1, column=1, sticky="w", padx=(6, 0))
-
-        tk.Frame(root, height=1, bg="#ccc").pack(fill="x", padx=18, pady=10)
-
-        tk.Label(root, text="홈택스 세금계산서 (지난 7일, 매출·매입)", font=("", 13, "bold")).pack(anchor="w", padx=18)
         row = tk.Frame(root)
-        row.pack(fill="x", padx=18, pady=4)
-        tk.Label(row, text="인증서 비밀번호").pack(side="left")
-        self.pw = tk.Entry(row, show="●")
-        self.pw.pack(side="left", fill="x", expand=True, padx=(8, 0))
-        self.pw.bind("<Return>", lambda e: self.fetch())
-        self.btn = tk.Button(root, text="홈택스에서 가져오기", font=("", 15), height=2, command=self.fetch)
-        self.btn.pack(fill="x", padx=18)
-        self.status = tk.Label(root, text="엑셀은 다운로드 폴더에 저장됩니다.", fg="#666", wraplength=380, justify="left")
-        self.status.pack(anchor="w", padx=18, pady=4)
-        self.pw.focus_set()
+        row.pack(padx=14, pady=(16, 4))
+        self.images, self.buttons, self.running = [], {}, set()
+        for i, (icon, name, sub, method) in enumerate(self.TILES):
+            img = tk.PhotoImage(file=str(Path(__file__).with_name(icon)))
+            self.images.append(img)
+            cell = tk.Frame(row, width=self.TILE_W)
+            cell.grid(row=0, column=i, padx=6)
+            # 맥의 tk.Button 은 회색 테두리가 생겨서 아이콘 그림 자체를 누르는 라벨로 쓴다
+            btn = tk.Label(cell, image=img, cursor="hand2", borderwidth=0, highlightthickness=0)
+            btn.bind("<Button-1>", lambda e, m=method: self.click(m))
+            btn.pack()
+            tk.Label(cell, text=name, font=("", 13, "bold")).pack(pady=(6, 0))
+            tk.Label(cell, text=sub, fg="#777", font=("", 11)).pack()
+            self.buttons[method] = btn
+        self.status = tk.Label(root, text="", fg="#666", wraplength=self.TILE_W * len(self.TILES), justify="center")
+        self.status.pack(padx=14, pady=(6, 12))
+
+    def click(self, method):
+        if method in self.running:
+            return          # 같은 기능이 아직 도는 중
+        getattr(self, method)()
+
+    def busy(self, method, on):
+        (self.running.add if on else self.running.discard)(method)
+        self.buttons[method].config(cursor="watch" if on else "hand2")
+
+    def shinhan(self):
+        open_shinhan()
+        self.status.config(text="사파리에서 신한은행 기업뱅킹을 열었습니다. 로그인은 직접 하세요.")
+
+    def hometax(self):
+        """비밀번호를 묻는 작은 창. 확인을 누르면 바로 가져온다."""
+        win = tk.Toplevel(self.root)
+        win.title("홈택스 — 지난 7일 매출·매입")
+        win.resizable(False, False)
+        win.transient(self.root)
+        tk.Label(win, text="공동인증서 비밀번호", font=("", 13)).pack(anchor="w", padx=16, pady=(14, 4))
+        entry = tk.Entry(win, show="●", width=28)
+        entry.pack(padx=16)
+        entry.focus_set()
+
+        def go(_e=None):
+            pw = entry.get()
+            win.destroy()
+            if pw:
+                self.fetch(pw)
+        bar = tk.Frame(win)
+        bar.pack(fill="x", padx=16, pady=12)
+        tk.Button(bar, text="가져오기", command=go, default="active").pack(side="right")
+        tk.Button(bar, text="취소", command=win.destroy).pack(side="right", padx=6)
+        entry.bind("<Return>", go)
+        entry.bind("<Escape>", lambda e: win.destroy())
+        win.grab_set()
 
     def gmail(self):
-        self.gbtn.config(state="disabled", text="  정리 중...")
+        self.busy("gmail", True)
 
         def work():
             try:
@@ -96,7 +133,7 @@ class App:
                 msg = str(e)
                 self.root.after(0, lambda: messagebox.showerror("지메일 정리", msg))
             finally:
-                self.root.after(0, lambda: self.gbtn.config(state="normal", text="  지메일 정리"))
+                self.root.after(0, lambda: self.busy("gmail", False))
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -113,17 +150,12 @@ class App:
     def log(self, text):
         self.root.after(0, lambda: self.status.config(text=text))
 
-    def fetch(self):
-        password = self.pw.get()
-        if not password:
-            messagebox.showwarning("은행·홈택스", "공동인증서 비밀번호를 입력하세요.")
-            return
+    def fetch(self, password):
         cdir = cert_dir()
         if not cdir:
             messagebox.showerror("은행·홈택스", "공동인증서를 찾지 못했습니다 (~/Library/Preferences/NPKI).")
             return
-        self.btn.config(state="disabled")
-        self.pw.delete(0, "end")          # 비밀번호는 화면에 남기지 않는다
+        self.busy("hometax", True)
 
         def work():
             try:
@@ -141,8 +173,8 @@ class App:
         threading.Thread(target=work, daemon=True).start()
 
     def done(self, ok, msg, paths):
-        self.btn.config(state="normal")
-        self.status.config(text="완료" if ok else "실패")
+        self.busy("hometax", False)
+        self.status.config(text="홈택스 가져오기 완료" if ok else "홈택스 가져오기 실패")
         if ok:
             subprocess.run(["open", "-R", str(paths[0])])
             messagebox.showinfo("홈택스 가져오기 완료", msg)

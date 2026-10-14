@@ -18,7 +18,7 @@ fi
 "$APP/venv/bin/python" -m pip install -q "openpyxl==3.1.5" "xlrd==2.0.2" \
   "hometax @ https://github.com/hjsh200219/hometax/archive/15aa5d490398bfc42fd3ae3541e8f206ec443a9d.zip"
 
-cp "$HERE/banksort.py" "$HERE/integrate.py" "$HERE/hometax_fetch.py" "$HERE/buttons.py" "$HERE/gmail_routine.py" "$HERE/icon.png" "$HERE/recycle.png" "$APP/"
+cp "$HERE/banksort.py" "$HERE/integrate.py" "$HERE/hometax_fetch.py" "$HERE/buttons.py" "$HERE/gmail_routine.py" "$HERE/icon.png" "$HERE"/tile_*.png "$APP/"
 osacompile -o "$SCRIPTS/banksort.scpt" "$HERE/banksort.applescript"
 "$APP/venv/bin/python" "$HERE/build.py" "$APP/BankSort.bas" >/dev/null
 # 「은행·홈택스」 버튼 앱

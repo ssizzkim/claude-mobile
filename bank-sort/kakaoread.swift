@@ -39,7 +39,7 @@ if !windows(app).contains(where: { title($0) == "카카오톡" }) {
     let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/open"); p.arguments = ["-b", BUNDLE]
     try? p.run(); p.waitUntilExit()
     openedMain = true
-    for _ in 0..<20 { usleep(200_000); if windows(app).contains(where: { title($0) == "카카오톡" }) { break } }
+    for _ in 0..<40 { usleep(200_000); if windows(app).contains(where: { title($0) == "카카오톡" }) { break } }
 }
 guard let main = windows(app).first(where: { title($0) == "카카오톡" }) else {
     out(["rooms": [], "error": "카카오톡 창을 찾지 못했습니다"]); exit(0)
@@ -61,7 +61,7 @@ func collectRows(_ e: AXUIElement) {
         } else { collectRows(k) }
     }
 }
-for _ in 0..<15 {            // 창을 막 띄웠으면 목록이 그려질 때까지 기다린다
+for _ in 0..<40 {            // 창을 막 띄웠으면 목록이 그려질 때까지 기다린다(최대 8초)
     rooms = []; collectRows(main)
     if !rooms.isEmpty { break }
     usleep(200_000)

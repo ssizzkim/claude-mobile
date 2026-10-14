@@ -2,6 +2,7 @@
 """은행·홈택스 버튼 — 맥 앱 화면.
 [신한은행 기업 열기] 사파리로 신한 기업뱅킹 첫 화면을 띄운다(로그인은 직접).
 [홈택스 지난 7일 가져오기] 공동인증서 비밀번호로 홈택스 매출·매입 세금계산서를 엑셀로 받는다.
+[♻ 지메일 정리] Claude 가 광고 보관·오래된 메일 정리·업무 라벨·중요 메일 요약을 한다(gmail_routine.py).
 """
 import json
 import os
@@ -11,6 +12,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox
 
+import gmail_routine
 import hometax_fetch
 
 HOME = Path(os.environ.get("BANKSORT_HOME", Path.home() / "Library/Application Support/BankSort"))
@@ -54,13 +56,19 @@ class App:
     def __init__(self, root):
         self.root = root
         root.title("은행·홈택스")
-        root.geometry("420x330")
+        root.geometry("460x350")
         root.resizable(False, False)
-        pad = dict(padx=18, pady=6)
 
-        tk.Label(root, text="신한은행 기업뱅킹", font=("", 13, "bold")).pack(anchor="w", **pad)
-        tk.Button(root, text="신한은행 기업 열기", font=("", 15), height=2, command=open_shinhan).pack(fill="x", padx=18)
-        tk.Label(root, text="첫 화면까지 열어 줍니다. 로그인과 엑셀 받기는 직접 하세요.", fg="#666").pack(anchor="w", padx=18)
+        top = tk.Frame(root)
+        top.pack(fill="x", padx=18, pady=(14, 0))
+        top.columnconfigure(0, weight=1, uniform="b"); top.columnconfigure(1, weight=1, uniform="b")
+        tk.Button(top, text="신한은행 기업 열기", font=("", 14), height=2, command=open_shinhan).grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        self.recycle = tk.PhotoImage(file=str(Path(__file__).with_name("recycle.png")))
+        self.gbtn = tk.Button(top, text="  지메일 정리", font=("", 14), image=self.recycle, compound="left",
+                              command=self.gmail)
+        self.gbtn.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+        tk.Label(top, text="사파리로 첫 화면까지 (로그인은 직접)", fg="#666").grid(row=1, column=0, sticky="w")
+        tk.Label(top, text="광고 보관·라벨·중요 메일 요약", fg="#666").grid(row=1, column=1, sticky="w", padx=(6, 0))
 
         tk.Frame(root, height=1, bg="#ccc").pack(fill="x", padx=18, pady=10)
 
@@ -76,6 +84,31 @@ class App:
         self.status = tk.Label(root, text="엑셀은 다운로드 폴더에 저장됩니다.", fg="#666", wraplength=380, justify="left")
         self.status.pack(anchor="w", padx=18, pady=4)
         self.pw.focus_set()
+
+    def gmail(self):
+        self.gbtn.config(state="disabled", text="  정리 중...")
+
+        def work():
+            try:
+                report = gmail_routine.run(log=self.log)
+                self.root.after(0, lambda: self.show_report(report))
+            except Exception as e:
+                msg = str(e)
+                self.root.after(0, lambda: messagebox.showerror("지메일 정리", msg))
+            finally:
+                self.root.after(0, lambda: self.gbtn.config(state="normal", text="  지메일 정리"))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def show_report(self, report):
+        self.status.config(text="지메일 정리 완료")
+        win = tk.Toplevel(self.root)
+        win.title("지메일 정리 결과")
+        win.geometry("620x520")
+        box = tk.Text(win, wrap="word", font=("", 13), padx=12, pady=10)
+        box.insert("1.0", report)
+        box.config(state="disabled")
+        box.pack(fill="both", expand=True)
 
     def log(self, text):
         self.root.after(0, lambda: self.status.config(text=text))

@@ -18,40 +18,9 @@ fi
 "$APP/venv/bin/python" -m pip install -q "openpyxl==3.1.5" "xlrd==2.0.2" pillow numpy \
   "hometax @ https://github.com/hjsh200219/hometax/archive/15aa5d490398bfc42fd3ae3541e8f206ec443a9d.zip"
 
-cp "$HERE/banksort.py" "$HERE/integrate.py" "$HERE/hometax_fetch.py" "$HERE/buttons.py" "$HERE/gmail_routine.py" "$HERE/icon.png" "$HERE"/tile_*.png "$APP/"
+cp "$HERE/banksort.py" "$HERE/integrate.py" "$HERE/hometax_fetch.py" "$HERE/buttons.py" "$HERE/gmail_routine.py" "$HERE/daily_digest.py" "$HERE/tools_cli.py" "$HERE/icon.png" "$HERE"/tile_*.png "$APP/"
+swiftc -O "$HERE/kakaoread.swift" -o "$APP/kakaoread"   # 카톡 화면 읽기 도구
 osacompile -o "$SCRIPTS/banksort.scpt" "$HERE/banksort.applescript"
 "$APP/venv/bin/python" "$HERE/build.py" "$APP/BankSort.bas" >/dev/null
-# 「은행·홈택스」 버튼 앱
-BUNDLE="/Applications/은행·홈택스.app"
-mkdir -p "$BUNDLE/Contents/MacOS"
-cat > "$BUNDLE/Contents/MacOS/run" <<RUN
-#!/bin/bash
-export LANG=ko_KR.UTF-8 LC_ALL=ko_KR.UTF-8 PYTHONIOENCODING=utf-8
-cd "$APP"
-exec "$APP/venv/bin/python" "$APP/buttons.py" >> "$APP/buttons.log" 2>&1
-RUN
-chmod +x "$BUNDLE/Contents/MacOS/run"
-# 아이콘
-ICONSET="$(mktemp -d)/AppIcon.iconset"; mkdir -p "$ICONSET" "$BUNDLE/Contents/Resources"
-for s in 16 32 128 256 512; do
-  sips -z $s $s "$HERE/icon.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
-  sips -z $((s*2)) $((s*2)) "$HERE/icon.png" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
-done
-iconutil -c icns "$ICONSET" -o "$BUNDLE/Contents/Resources/AppIcon.icns"
-cat > "$BUNDLE/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>CFBundleName</key><string>은행·홈택스</string>
-<key>CFBundleDisplayName</key><string>은행·홈택스</string>
-<key>CFBundleIdentifier</key><string>com.torque.bankbuttons</string>
-<key>CFBundleExecutable</key><string>run</string>
-<key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleVersion</key><string>1</string>
-<key>CFBundleIconFile</key><string>AppIcon</string>
-</dict></plist>
-PLIST
 echo "설치 완료: $APP"
-touch "$BUNDLE"   # Finder·Dock 아이콘 새로 읽게
-echo "버튼 앱: $BUNDLE"
 echo "엑셀 연결: $SCRIPTS/banksort.scpt"

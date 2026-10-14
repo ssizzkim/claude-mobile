@@ -140,7 +140,36 @@ def gmail():
     return place(base, ring, mask)
 
 
+# ------------------------------------------------------------------ 오늘 정리: 문자·카톡 말풍선 + 메모
+
+def daily():
+    base, mask = tile((168, 120, 240), (96, 56, 184))
+    def bubble(box, color, tail, dots):
+        b = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        bd = ImageDraw.Draw(b)
+        bd.rounded_rectangle(box, 90, fill=color)
+        bd.polygon(tail, fill=color)
+        x0, y0, x1, y1 = box
+        cy = (y0 + y1) // 2
+        for i in range(3):
+            cx = x0 + (x1 - x0) * (i + 1) // 4
+            bd.ellipse((cx - 22, cy - 22, cx + 22, cy + 22), fill=dots)
+        return b
+    yellow = bubble((150, 230, 600, 470), (254, 229, 0), [(220, 450), (200, 560), (320, 460)], (60, 50, 40))   # 카톡
+    green = bubble((420, 470, 874, 710), (110, 220, 120), [(800, 690), (830, 800), (700, 700)], (255, 255, 255))  # 문자
+    base = place(base, yellow, mask)
+    base = place(base, green, mask)
+    note = Image.new("RGBA", (S, S), (0, 0, 0, 0))                       # 정리 메모(체크)
+    nd = ImageDraw.Draw(note)
+    nd.rounded_rectangle((150, 560, 400, 850), 30, fill=(255, 255, 255))
+    for i, y in enumerate((625, 705, 785)):
+        nd.line((190, y, 220, y + 25), fill=(120, 80, 210), width=16)
+        nd.line((218, y + 25, 262, y - 22), fill=(120, 80, 210), width=16)
+        nd.rounded_rectangle((285, y - 6, 365, y + 12), 9, fill=(200, 190, 230))
+    return place(base, note, mask)
+
+
 size = int(sys.argv[1]) if len(sys.argv) > 1 else 96
-for name, fn in (("tile_bank", bank), ("tile_hometax", invoice), ("tile_gmail", gmail)):
+for name, fn in (("tile_bank", bank), ("tile_hometax", invoice), ("tile_gmail", gmail), ("tile_daily", daily)):
     fn().resize((size, size), Image.LANCZOS).save(f"{name}.png")
     print(f"{name}.png")

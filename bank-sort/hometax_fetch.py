@@ -47,6 +47,24 @@ def keyboard_ascii(text):
     return "".join(out)
 
 
+def cert_dir():
+    """공동인증서 폴더: 설정 → 예전 앱 설정 → NPKI 에서 '토르크' 인증서."""
+    import json
+    home = Path(os.environ.get("BANKSORT_HOME", Path.home() / "Library/Application Support/BankSort"))
+    for cfg_path, key in ((home / "config.json", "cert_dir"),
+                          (Path.home() / "Library/Application Support/BankTaxReport/settings.json", "CERT_DIR")):
+        try:
+            v = json.loads(cfg_path.read_text("utf-8")).get(key)
+            if v and Path(v).is_dir():
+                return v
+        except Exception:
+            pass
+    for p in (Path.home() / "Library/Preferences/NPKI").glob("*/USER/*"):
+        if "토르크" in p.name and (p / "signCert.der").exists():
+            return str(p)
+    return None
+
+
 def today_kst():
     return datetime.now(SEOUL).date()
 

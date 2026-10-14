@@ -140,10 +140,8 @@ def to_row(item, detail):
             line.tax_amount if line else None, None]
 
 
-def save(label, rows, start, end, folder):
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = f"{label}"
+def fill_sheet(ws, label, rows, start, end):
+    ws.title = label
     ws.append([f"전자세금계산서 {label} 목록 (홈택스 자동 조회, 발급일 기준)"])
     ws["A1"].font = Font(bold=True, size=13)
     ws.append([f"조회기간 {start.isoformat()} ~ {end.isoformat()}"])
@@ -153,7 +151,24 @@ def save(label, rows, start, end, folder):
         c.font = Font(bold=True)
     for item, detail in rows:
         ws.append(to_row(item, detail))
-    stamp = datetime.now(SEOUL).strftime("%Y%m%d_%H%M%S")   # 받은 시각(초까지)을 붙여 덮어쓰지 않게
+
+
+def save_both(data, start, end, folder):
+    """매출·매입을 엑셀 파일 하나에 시트 두 개로 저장한다(파일명 끝에 받은 시각, 초까지)."""
+    wb = openpyxl.Workbook()
+    fill_sheet(wb.active, "매출", data.get("매출", []), start, end)
+    fill_sheet(wb.create_sheet(), "매입", data.get("매입", []), start, end)
+    stamp = datetime.now(SEOUL).strftime("%Y%m%d_%H%M%S")
+    path = Path(folder) / f"홈택스_세금계산서_{start:%Y%m%d}-{end:%Y%m%d}_{stamp}.xlsx"
+    wb.save(str(path))
+    return path
+
+
+def save(label, rows, start, end, folder):
+    """시트 하나짜리(시험용)."""
+    wb = openpyxl.Workbook()
+    fill_sheet(wb.active, label, rows, start, end)
+    stamp = datetime.now(SEOUL).strftime("%Y%m%d_%H%M%S")
     path = Path(folder) / f"{label}전자세금계산서목록_자동_{start:%Y%m%d}-{end:%Y%m%d}_{stamp}.xlsx"
     wb.save(str(path))
     return path
@@ -167,9 +182,5 @@ def fetch_last_week(password, cert_dir=None, folder=None, log=print):
     start, end = last_week()
     data = asyncio.run(_fetch(start, end, cert_dir, password, log))
     folder = Path(folder or Path.home() / "Downloads")
-    paths, counts = [], {}
-    for label in ("매출", "매입"):
-        rows = data.get(label, [])
-        paths.append(save(label, rows, start, end, folder))
-        counts[label] = len(rows)
-    return paths, counts, (start, end)
+    counts = {label: len(data.get(label, [])) for label in ("매출", "매입")}
+    return [save_both(data, start, end, folder)], counts, (start, end)

@@ -1,4 +1,4 @@
-# 「은행·홈택스」 앱 아이콘: 남색 바탕에 흰 은행 건물, 노란 세금계산서 한 장.
+# 「은행·홈택스」 앱 아이콘: 남색 바탕 가운데 흰 은행 건물.
 import sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter
@@ -21,23 +21,12 @@ img.paste(bg, (0, 0), mask)
 
 d = ImageDraw.Draw(img)
 W = (255, 255, 255, 255)
-# 은행 건물(왼쪽 위)
-d.polygon([(210, 400), (470, 250), (730, 400)], fill=W)           # 지붕
-d.rectangle((230, 410, 710, 445), fill=W)                         # 처마
-for x in (265, 365, 465, 565, 665):                               # 기둥
-    d.rectangle((x - 22, 465, x + 22, 690), fill=W)
-d.rectangle((215, 705, 725, 750), fill=W)                         # 기단
-# 세금계산서(오른쪽 아래, 노란 종이)
-paper = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-pd = ImageDraw.Draw(paper)
-pd.rounded_rectangle((560, 520, 840, 860), 26, fill=(255, 210, 70, 255), outline=(255, 255, 255, 255), width=14)
-for y in (600, 660, 720):
-    pd.rounded_rectangle((610, y, 790, y + 22), 11, fill=(120, 80, 0, 255))
-pd.rounded_rectangle((610, 780, 720, 802), 11, fill=(120, 80, 0, 255))
-shadow = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-ImageDraw.Draw(shadow).rounded_rectangle((572, 540, 852, 880), 26, fill=(0, 0, 0, 120))
-img.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(14)))
-img.alpha_composite(paper)
+# 은행 건물(가운데)
+d.polygon([(252, 412), (512, 262), (772, 412)], fill=W)           # 지붕
+d.rectangle((272, 422, 752, 457), fill=W)                         # 처마
+for x in (307, 407, 507, 607, 707):                               # 기둥
+    d.rectangle((x + 5 - 22, 477, x + 5 + 22, 702), fill=W)
+d.rectangle((257, 717, 767, 762), fill=W)                         # 기단
 
 out = Path(sys.argv[1] if len(sys.argv) > 1 else "icon.png")
 img.save(out)

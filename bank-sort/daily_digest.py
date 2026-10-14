@@ -104,6 +104,13 @@ def read_sms(day):
 
 
 def read_kakao():
+    # 토르크 관리 앱이 직접 읽어 둔 결과(손쉬운 사용 권한은 앱에 있으므로 앱이 읽는다)
+    given = os.environ.get("KAKAO_JSON")
+    if given and Path(given).exists():
+        data = json.loads(Path(given).read_text("utf-8") or "{}")
+        if data.get("permission") == "kakao":
+            raise NeedPermission("kakao")
+        return data.get("rooms", []), data.get("error", "")
     tool = HERE / "kakaoread"
     if not tool.exists():
         return [], "카톡 읽기 도구가 설치되지 않았습니다"

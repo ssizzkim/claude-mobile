@@ -325,6 +325,13 @@ class BankToolsHandler: NSObject, WKScriptMessageHandler {
         let input = (body["input"] as? String) ?? ""
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let home = NSHomeDirectory() + "/Library/Application Support/BankSort"
+            // 오늘 정리: 카톡은 앱이 직접 읽어 파일로 넘긴다(손쉬운 사용 권한이 앱에 있으므로)
+            var kakaoFile = ""
+            if action == "daily" {
+                let k = KakaoReader.readToday()
+                kakaoFile = home + "/kakao_today.json"
+                if let d = try? JSONSerialization.data(withJSONObject: k) { try? d.write(to: URL(fileURLWithPath: kakaoFile)) }
+            }
             let p = Process()
             p.executableURL = URL(fileURLWithPath: home + "/venv/bin/python")
             p.arguments = [home + "/tools_cli.py", action]
@@ -332,6 +339,7 @@ class BankToolsHandler: NSObject, WKScriptMessageHandler {
             var env = ProcessInfo.processInfo.environment
             env["LANG"] = "ko_KR.UTF-8"; env["PYTHONIOENCODING"] = "utf-8"
             env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+            if !kakaoFile.isEmpty { env["KAKAO_JSON"] = kakaoFile }
             p.environment = env
             let inPipe = Pipe(), outPipe = Pipe()
             p.standardInput = inPipe; p.standardOutput = outPipe; p.standardError = FileHandle.nullDevice

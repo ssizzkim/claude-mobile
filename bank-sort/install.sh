@@ -15,10 +15,34 @@ if [ ! -x "$APP/venv/bin/python" ]; then
   "$PY" -m venv "$APP/venv"
 fi
 "$APP/venv/bin/python" -m pip install -q --upgrade pip >/dev/null
-"$APP/venv/bin/python" -m pip install -q "openpyxl==3.1.5" "xlrd==2.0.2"
+"$APP/venv/bin/python" -m pip install -q "openpyxl==3.1.5" "xlrd==2.0.2" \
+  "hometax @ https://github.com/hjsh200219/hometax/archive/15aa5d490398bfc42fd3ae3541e8f206ec443a9d.zip"
 
-cp "$HERE/banksort.py" "$HERE/integrate.py" "$APP/"
+cp "$HERE/banksort.py" "$HERE/integrate.py" "$HERE/hometax_fetch.py" "$HERE/buttons.py" "$APP/"
 osacompile -o "$SCRIPTS/banksort.scpt" "$HERE/banksort.applescript"
 "$APP/venv/bin/python" "$HERE/build.py" "$APP/BankSort.bas" >/dev/null
+# 「은행·홈택스」 버튼 앱
+BUNDLE="/Applications/은행·홈택스.app"
+mkdir -p "$BUNDLE/Contents/MacOS"
+cat > "$BUNDLE/Contents/MacOS/run" <<RUN
+#!/bin/bash
+export LANG=ko_KR.UTF-8 LC_ALL=ko_KR.UTF-8 PYTHONIOENCODING=utf-8
+cd "$APP"
+exec "$APP/venv/bin/python" "$APP/buttons.py" >> "$APP/buttons.log" 2>&1
+RUN
+chmod +x "$BUNDLE/Contents/MacOS/run"
+cat > "$BUNDLE/Contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>은행·홈택스</string>
+<key>CFBundleDisplayName</key><string>은행·홈택스</string>
+<key>CFBundleIdentifier</key><string>com.torque.bankbuttons</string>
+<key>CFBundleExecutable</key><string>run</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleVersion</key><string>1</string>
+</dict></plist>
+PLIST
 echo "설치 완료: $APP"
+echo "버튼 앱: $BUNDLE"
 echo "엑셀 연결: $SCRIPTS/banksort.scpt"

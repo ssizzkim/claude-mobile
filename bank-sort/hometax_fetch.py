@@ -153,7 +153,8 @@ def save(label, rows, start, end, folder):
         c.font = Font(bold=True)
     for item, detail in rows:
         ws.append(to_row(item, detail))
-    path = Path(folder) / f"{label}전자세금계산서목록_자동_{start:%Y%m%d}-{end:%Y%m%d}.xlsx"
+    stamp = datetime.now(SEOUL).strftime("%Y%m%d_%H%M%S")   # 받은 시각(초까지)을 붙여 덮어쓰지 않게
+    path = Path(folder) / f"{label}전자세금계산서목록_자동_{start:%Y%m%d}-{end:%Y%m%d}_{stamp}.xlsx"
     wb.save(str(path))
     return path
 

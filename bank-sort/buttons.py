@@ -119,5 +119,9 @@ class App:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    try:   # 실행 중 Dock 에 파이썬 대신 앱 아이콘이 보이게
+        root.iconphoto(True, tk.PhotoImage(file=str(Path(__file__).with_name("icon.png"))))
+    except Exception:
+        pass
     App(root)
     root.mainloop()

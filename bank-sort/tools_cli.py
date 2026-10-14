@@ -31,7 +31,7 @@ def main():
                 if "decryption" in str(e).lower() or "password" in str(e).lower() or "비밀번호" in str(e):
                     raise RuntimeError("인증서 비밀번호가 맞지 않거나, 로그인이 만료됐습니다. 비밀번호를 넣어 다시 시도하세요.") from None
                 raise
-            subprocess.run(["open", "-R", str(paths[0])])
+            subprocess.run(["open", str(Path(paths[0]).parent)])   # 다운로드 폴더를 띄운다
             return {"ok": True, "action": action, "start": str(start), "end": str(end), "counts": counts,
                     "files": [str(p) for p in paths]}
         if action == "gmail":
@@ -53,5 +53,14 @@ def main():
         return {"ok": False, "action": action, "error": str(e)}
 
 
+def _log(text):
+    from datetime import datetime
+    with open(HERE / "tools_run.log", "a", encoding="utf-8") as f:
+        f.write(f"{datetime.now():%Y-%m-%d %H:%M:%S} {text}\n")
+
+
 if __name__ == "__main__":
-    print(json.dumps(main(), ensure_ascii=False))
+    _log(f"시작 {sys.argv[1:]}")
+    result = main()
+    _log(f"끝 ok={result.get('ok')} {result.get('error', '')}")
+    print(json.dumps(result, ensure_ascii=False))

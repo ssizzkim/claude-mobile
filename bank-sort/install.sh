@@ -31,6 +31,13 @@ cd "$APP"
 exec "$APP/venv/bin/python" "$APP/buttons.py" >> "$APP/buttons.log" 2>&1
 RUN
 chmod +x "$BUNDLE/Contents/MacOS/run"
+# 아이콘
+ICONSET="$(mktemp -d)/AppIcon.iconset"; mkdir -p "$ICONSET" "$BUNDLE/Contents/Resources"
+for s in 16 32 128 256 512; do
+  sips -z $s $s "$HERE/icon.png" --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
+  sips -z $((s*2)) $((s*2)) "$HERE/icon.png" --out "$ICONSET/icon_${s}x${s}@2x.png" >/dev/null
+done
+iconutil -c icns "$ICONSET" -o "$BUNDLE/Contents/Resources/AppIcon.icns"
 cat > "$BUNDLE/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -41,8 +48,10 @@ cat > "$BUNDLE/Contents/Info.plist" <<PLIST
 <key>CFBundleExecutable</key><string>run</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleVersion</key><string>1</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
 </dict></plist>
 PLIST
 echo "설치 완료: $APP"
+touch "$BUNDLE"   # Finder·Dock 아이콘 새로 읽게
 echo "버튼 앱: $BUNDLE"
 echo "엑셀 연결: $SCRIPTS/banksort.scpt"

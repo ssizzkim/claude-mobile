@@ -205,3 +205,49 @@ def run(projects, day=None, log=print):
     if kerr:
         result["warning"] = kerr
     return result
+
+
+def run_range(projects, start, end, log=print):
+    """start~end(포함)를 날짜별로 정리. 카톡은 접근성으로 오늘 대화만 읽을 수 있으므로
+    오늘이 기간에 들어 있을 때만 읽고, 과거 날짜는 문자만으로 정리한다.
+    하루짜리 기간은 기존 run 과 같은 평면 구조로, 여러 날은 {range, days, skipped, stats}로 돌려준다."""
+    today = datetime.now(SEOUL).date()
+    ndays = (end - start).days + 1
+    if ndays < 1:
+        raise RuntimeError("시작일이 종료일보다 늦습니다.")
+    if ndays > 14:
+        raise RuntimeError("기간은 최대 14일까지만 정리할 수 있습니다.")
+    rooms, kerr = [], ""
+    if start <= today <= end:
+        log("카톡 읽는 중...")
+        rooms, kerr = read_kakao()
+    days, skipped = [], []
+    tot_sms = tot_rooms = tot_k = 0
+    for i in range(ndays):
+        day = start + timedelta(days=i)
+        log(f"{day} 문자 읽는 중...")
+        sms = read_sms(day)
+        day_rooms = rooms if day == today else []
+        nk = sum(len(r.get("messages", [])) for r in day_rooms)
+        tot_sms += len(sms); tot_rooms += len(day_rooms); tot_k += nk
+        if not sms and not nk:
+            skipped.append(day.isoformat())
+            continue
+        log(f"{day} 문자 {len(sms)}건 · 카톡 {nk}건. Claude 가 정리하는 중...")
+        res = analyze(day, sms, day_rooms, projects)
+        res["date"] = day.isoformat()
+        res["stats"] = {"sms": len(sms), "kakao_rooms": len(day_rooms), "kakao": nk}
+        days.append(res)
+    if ndays == 1:
+        if not days:
+            return {"date": start.isoformat(), "summary": "이 날 읽을 문자·카톡이 없습니다.", "todos": [],
+                    "stats": {"sms": 0, "kakao_rooms": 0, "kakao": 0}, "warning": kerr}
+        one = days[0]
+        if kerr:
+            one["warning"] = kerr
+        return one
+    out = {"range": [start.isoformat(), end.isoformat()], "days": days, "skipped": skipped,
+           "stats": {"sms": tot_sms, "kakao_rooms": tot_rooms, "kakao": tot_k}}
+    if kerr:
+        out["warning"] = kerr
+    return out

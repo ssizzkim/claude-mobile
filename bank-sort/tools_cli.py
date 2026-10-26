@@ -64,11 +64,20 @@ def main():
         if action == "gmail":
             import gmail_routine
             return {"ok": True, "action": action, "report": gmail_routine.run(log=lambda t: None)}
-        if action == "daily":
+        if action in ("daily", "daily_range"):
+            # daily: 래퍼가 카톡을 읽어 KAKAO_JSON 으로 넘긴 뒤 호출(오늘 포함 기간).
+            # daily_range: 과거만의 기간 — 래퍼가 카톡을 읽지 않고 바로 호출(문자만).
             import daily_digest
+            from datetime import date
             req = json.loads(stdin or "{}")
+            sd, ed = req.get("start"), req.get("end")
             try:
-                result = daily_digest.run(req.get("projects", []), log=lambda t: None)
+                if sd and ed:
+                    result = daily_digest.run_range(req.get("projects", []),
+                                                    date.fromisoformat(sd), date.fromisoformat(ed),
+                                                    log=lambda t: None)
+                else:
+                    result = daily_digest.run(req.get("projects", []), log=lambda t: None)
             except daily_digest.NeedPermission as e:
                 which = "「전체 디스크 접근」(문자 읽기)" if str(e) == "sms" else "「손쉬운 사용」(카톡 읽기)"
                 return {"ok": False, "action": action, "permission": str(e),

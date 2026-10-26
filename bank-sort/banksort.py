@@ -401,8 +401,36 @@ def copy_style(src, dst):
     dst.alignment = copy(src.alignment); dst.number_format = src.number_format
 
 
+NEW_BOOK_HEADERS = {
+    "매입세금계산서": ["No", "작성일자", "연도", "월", "발급일자", "전송일자", "공급자 사업자등록번호",
+                  "공급자 상호", "대표자명", "공급자 주소", "품목명", "수량", "단가", "공급가액", "세액",
+                  "합계금액", "승인번호", "종류", "구분", "발급유형", "영수/청구", "비고", "공급자 이메일", "조회기간"],
+    "매출세금계산서": ["No", "작성일자", "연도", "월", "발급일자", "전송일자", "공급받는자 사업자등록번호",
+                  "공급받는자 상호", "대표자명", "품목명", "공급가액", "세액", "합계금액", "승인번호",
+                  "종류", "발급유형", "영수/청구", "비고", "공급받는자 이메일"],
+}
+
+
+def create_invoice_book(path, sheet):
+    """통합 계산서 파일이 없으면 헤더만 있는 새 파일을 만든다(집계 시트는 생략)."""
+    headers = NEW_BOOK_HEADERS[sheet]
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = sheet
+    for c, h in enumerate(headers, 1):
+        cell = ws.cell(1, c)
+        cell.value = h
+        cell.font = Font(bold=True)
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}1"
+    ws.freeze_panes = "A2"
+    wb.save(str(path))
+
+
 def append_invoices(path, sheet, new_rows, date_col, key_col):
-    """통합 계산서 파일에 행을 더하고 작성일자 순으로 다시 정렬, 집계 시트도 맞춘다."""
+    """통합 계산서 파일에 행을 더하고 작성일자 순으로 다시 정렬, 집계 시트도 맞춘다.
+    파일이 없으면(예: 매출 통합을 아직 안 만든 경우) 헤더만 있는 새 파일을 만들어 시작한다."""
+    if not Path(str(path)).exists():
+        create_invoice_book(path, sheet)
     wb = openpyxl.load_workbook(str(path))
     ws = wb[sheet]
     last, total_row = data_end_row(ws)
@@ -974,6 +1002,51 @@ def build_site_sheet(wb):
             src.cell(r, s["col"]).fill = SITE_FILL
 
 
+def refresh_report_invoices(wb, g):
+    """파일 없이 다시 정리할 때: 지난 「이번 정리」의 세금계산서 행 매칭 결과를 새 결과로 고친다."""
+    if REPORT_SHEET not in wb.sheetnames:
+        return 0
+    ws = wb[REPORT_SHEET]
+    by = {}
+    for kind, lst in (("매입", g["INV"]), ("매출", g["SINV"])):
+        for i in lst:
+            by[N(i["승인"] or "")] = (kind, i)
+    n = 0
+    for r in range(1, ws.max_row + 1):
+        kind_cell, appr = ws.cell(r, 1).value, ws.cell(r, 7).value
+        if kind_cell not in ("매입", "매출") or not appr or N(appr) not in by:
+            continue
+        kind, i = by[N(appr)]
+        b = i["bank"] if i["bank"] not in (None, "X") else None
+        if i.get("cancel"): mt = "취소/정정 상계"
+        elif i.get("vendor_ok"): mt = "거래처 합계 일치"
+        elif "split" in i: mt = "분할 일치"
+        elif "merged" in i: mt = "합산 일치"
+        elif b: mt = b.get("sinvtype" if kind == "매출" else "invtype")
+        elif i["합계"] < 0: mt = "수정/취소(음수)"
+        else: mt = None
+        if "split" in i:
+            bd = ", ".join(q["t"].strftime("%Y-%m-%d") for q in i["split"])
+            amt_key = "입금" if kind == "매출" else "출금"
+            ba = sum(q[amt_key] for q in i["split"]); bc = f'{len(i["split"])}건 합 ({b["내용"] if b else ""})'
+        else:
+            bd = b["t"] if b else None
+            ba = (b["입금"] if kind == "매출" else b["출금"]) if b else None
+            bc = b["내용"] if b else None
+        ws.cell(r, 3).value = i["상호"] or ws.cell(r, 3).value
+        ws.cell(r, 4).value = i["대표"] or ws.cell(r, 4).value
+        for c, v in ((8, mt), (9, bd), (10, ba), (11, bc)):
+            ws.cell(r, c).value = v
+        if not isinstance(bd, str):
+            ws.cell(r, 9).number_format = "yyyy-mm-dd"
+        ws.cell(r, 10).number_format = "#,##0"
+        fill, font = (GREEN, GREEN_F) if mt else (PINK, PINK_F)
+        for c in range(1, 12):
+            ws.cell(r, c).fill = fill; ws.cell(r, c).font = font
+        n += 1
+    return n
+
+
 # ------------------------------------------------------------------ 실행
 
 
@@ -1082,6 +1155,8 @@ def run(paths):
     # 파일 없이 다시 정리할 때는 지난번 「이번 정리」 시트를 그대로 둔다
     final = merge_into_existing(new_wb, out_path, generated, always_new={REPORT_SHEET})
     build_site_sheet(final)
+    if not paths:
+        refresh_report_invoices(final, g)   # 지난 「이번 정리」의 계산서 매칭도 새 결과로
     if REPORT_SHEET in final.sheetnames:
         final.active = final.sheetnames.index(REPORT_SHEET)
         for w in final.worksheets:

@@ -94,6 +94,34 @@ def num_or_none(v):
         return v
 
 
+async def raw_detail(client, item, direction):
+    """홈택스 상세 원본에서 거래처 정보를 직접 꺼낸다.
+    hometax 도구의 detail() 은 개인 구매자(상호 공백)면 검사에서 떨어뜨리므로 이쪽을 쓴다."""
+    from hometax_login import invoices as inv
+    svc = client.invoices
+    tin, _company = await svc._business()
+    data = svc.client._json(await svc.client._request(
+        "POST", inv.ET_BASE + "/wqAction.do",
+        params={"actionId": "ATEETBDA001R02", "screenId": "UTEETBDA38", "popupYn": "true", "realScreenId": ""},
+        json={"etxivIsnBrkdTermDVOPrmt": {"etan": item.approval_number, "screenId": inv.LIST_SCREEN,
+                                          "pageNum": "1", "slsPrhClCd": "01" if direction == "sales" else "02",
+                                          "etxivTin": tin, "etxivClCd": "", "etxivClsfCd": "",
+                                          "etxivMpbNo": svc.business_mpb_no}}))
+    body = data.get("etxivIsnBrkdTermDVO") or {}
+    lines = data.get("lsatInfrBizSVOList") or []
+    s = lambda k: (str(body.get(k)).strip() or None) if body.get(k) not in (None, "") else None
+    first = lines[0] if lines and isinstance(lines[0], dict) else {}
+    return {
+        "sup_reg": s("splrTxprDscmNo"), "sup_name": s("splrTnmNm"), "sup_rep": s("splrRprsFnm"), "sup_addr": s("splrPfbAdr"),
+        "sup_mail": s("splrMchrgEmlAdr"),
+        "cus_reg": s("dmnrTxprDscmNo"), "cus_name": s("dmnrTnmNm"), "cus_rep": s("dmnrRprsFnm"), "cus_addr": s("dmnrPfbAdr"),
+        "cus_mail": s("dmnrMchrgEmlAdr"),
+        "line_name": first.get("lsatNm"), "line_date": first.get("lsatSplDt"), "line_spec": first.get("lsatRszeNm"),
+        "line_qty": first.get("lsatQty"), "line_price": first.get("lsatUtprc"), "line_remark": first.get("lsatRmrkCntn"),
+        "line_supply": first.get("lsatSplCft"), "line_tax": first.get("lsatTxamt"),
+    }
+
+
 async def _fetch(start, end, cert_dir, password, log):
     from hometax_login import cli
     os.environ["HOMETAX_PW"] = password
@@ -111,7 +139,7 @@ async def _fetch(start, end, cert_dir, password, log):
                 for i, item in enumerate(items, 1):
                     log(f"{label} 상세 {i}/{len(items)}")
                     try:
-                        detail = await client.invoices.detail(item.approval_number)
+                        detail = await raw_detail(client, item, direction)
                     except Exception:
                         detail = None
                     rows.append((item, detail))
@@ -124,20 +152,17 @@ async def _fetch(start, end, cert_dir, password, log):
         os.environ.pop("HOMETAX_PW", None)
 
 
-def to_row(item, detail):
-    line = detail.items[0] if detail and detail.items else None
-    sup_reg = dashed_reg(detail.supplier_business_number) if detail else None
-    cus_reg = dashed_reg(detail.customer_business_number) if detail else None
+def to_row(item, d):
+    d = d or {}
     return [item.written_date.isoformat(), dashed_approval(item.approval_number), item.issued_date.isoformat(),
             item.transmitted_date.isoformat() if item.transmitted_date else None,
-            sup_reg, None, detail.supplier_name if detail else None, None, None,
-            cus_reg, None, detail.customer_name if detail else None, None, None,
+            dashed_reg(d.get("sup_reg")), None, d.get("sup_name"), d.get("sup_rep"), d.get("sup_addr"),
+            dashed_reg(d.get("cus_reg")), None, d.get("cus_name"), d.get("cus_rep"), d.get("cus_addr"),
             item.total_amount, item.supply_amount, item.tax_amount,
-            "세금계산서", "일반", None, line.remarks if line else None, None, None, None, None,
-            line.supplied_date if line else None, (line.name if line else None) or item.item_name,
-            line.specification if line else None, num_or_none(line.quantity) if line else None,
-            num_or_none(line.unit_price) if line else None, line.supply_amount if line else None,
-            line.tax_amount if line else None, None]
+            "세금계산서", "일반", None, d.get("line_remark"), None, d.get("sup_mail"), d.get("cus_mail"), None,
+            d.get("line_date"), d.get("line_name") or item.item_name, d.get("line_spec"),
+            num_or_none(d.get("line_qty")), num_or_none(d.get("line_price")),
+            num_or_none(d.get("line_supply")), num_or_none(d.get("line_tax")), None]
 
 
 def fill_sheet(ws, label, rows, start, end):

@@ -119,6 +119,7 @@ def pass_name():
         for q in QX:
             if q["출금"]<=0 or "inv" in q: continue
             if inv["합계"]!=amt_of(q) or not name_match(q,inv): continue
+            if abs((q["t"].date()-inv["d"]).days)>365: continue   # 1년 넘게 떨어진 같은 금액은 다른 거래(2026-10-26)
             pairs.append((abs((q["t"].date()-inv["d"]).days),id(inv),id(q),inv,q))
     pairs.sort(key=lambda p:p[0])
     for d,_,_,inv,q in pairs:
@@ -212,6 +213,7 @@ for inv in SINV:
     if inv["bank"] or inv["합계"]<=0: continue
     for q in QIx:
         if "sinv" in q or inv["합계"]!=q["입금"] or not sname_match(q,inv): continue
+        if abs((q["t"].date()-inv["d"]).days)>365: continue    # 1년 넘게 떨어진 같은 금액은 다른 거래
         pairs.append((abs((q["t"].date()-inv["d"]).days),id(inv),id(q),inv,q))
 pairs.sort(key=lambda p:p[0])
 for d,_,_,inv,q in pairs:
